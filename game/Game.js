@@ -13,6 +13,7 @@ import { PowerGem } from './entities/PowerGem.js';
 import { Laser } from './entities/Laser.js';
 import { Shield } from './entities/Shield.js';
 import { CollisionSystem } from './physics/CollisionSystem.js';
+import { Boss, BOSS_STATES } from './entities/Boss.js';
 import { hexToPixel, GRID_SIZES } from '../shared/HexMath.js';
 
 // Weapon costs
@@ -45,6 +46,10 @@ export class Game {
         this.laserStock = 0;
         this.activeWeapon = null;
         this.laserCooldown = 0;
+
+        // Boss
+        this.boss = null;
+        this.destroyedBlocks = []; // For boss block regeneration
 
         // Game loop
         this.lastTime = 0;
@@ -101,6 +106,16 @@ export class Game {
         this.laserStock = 0;
         this.activeWeapon = null;
         this.laserCooldown = 0;
+        this.boss = null;
+        this.destroyedBlocks = [];
+
+        // Create boss if stage has boss config
+        if (stageData.boss) {
+            this.boss = new Boss({
+                ...stageData.boss,
+                gridSize: stageData.gridSize || 'medium'
+            });
+        }
 
         // Create paddle at bottom center
         this.paddle = new Paddle(this.canvasWidth / 2, this.canvasHeight - 50);
@@ -321,9 +336,128 @@ export class Game {
             }
         }
 
+        // Update boss
+        if (this.boss && this.boss.active) {
+            this._updateBoss(dt);
+        }
+
         // Check clear condition
-        if (this.state.isCleared()) {
+        if (this.state.isCleared() && (!this.boss || !this.boss.active)) {
             this._stageClear();
+        }
+    }
+
+    /**
+     * Update boss entity
+     * @private
+     */
+    _updateBoss(dt) {
+        if (!this.boss) return;
+
+        // Prepare context for boss
+        const context = {
+            balls: this.balls,
+            blocks: this.state.blocks,
+            destroyedBlocks: this.destroyedBlocks,
+            paddle: this.paddle,
+            canvasWidth: this.canvasWidth,
+            canvasHeight: this.canvasHeight,
+            onDebuffHit: (type) => this._applyDebuff(type)
+        };
+
+        this.boss.update(dt, context);
+
+        // Check ball collisions with boss
+        for (const ball of this.balls) {
+            if (ball.attached || !ball.active) continue;
+
+            if (this.boss.checkBallCollision(ball)) {
+                // Damage boss
+                const defeated = this.boss.takeDamage(1);
+
+                // Reflect ball
+                const dx = ball.x - this.boss.x;
+                const dy = ball.y - this.boss.y;
+                const len = Math.hypot(dx, dy);
+                if (len > 0) {
+                    ball.reflect(dx / len, dy / len);
+                    // Push ball away
+                    ball.x += (dx / len) * 10;
+                    ball.y += (dy / len) * 10;
+                }
+
+                // Score for hitting boss
+                this.state.addScore(100);
+                this.state.incrementCombo();
+
+                if (defeated) {
+                    // Boss defeated bonus
+                    this.state.addScore(5000);
+                    this.state.setBossDefeated();
+                    this._spawnBossReward();
+                }
+
+                this._updateUI();
+            }
+        }
+
+        // Check laser collisions with boss
+        for (const laser of this.lasers) {
+            if (!laser.active) continue;
+
+            const dist = Math.hypot(laser.x - this.boss.x, laser.y - this.boss.y);
+            if (dist < this.boss.radius) {
+                const defeated = this.boss.takeDamage(2);
+                this.state.addScore(50);
+
+                if (defeated) {
+                    this.state.addScore(5000);
+                    this.state.setBossDefeated();
+                    this._spawnBossReward();
+                }
+
+                this._updateUI();
+            }
+        }
+    }
+
+    /**
+     * Apply debuff effect from boss
+     * @private
+     */
+    _applyDebuff(type) {
+        switch (type) {
+            case 'slow':
+                // Slow paddle movement temporarily
+                // Note: InputManager doesn't have direct speed control,
+                // so we'll slow ball speed instead
+                this.balls.forEach(ball => ball.setSpeedMultiplier(0.5));
+                setTimeout(() => {
+                    this.balls.forEach(ball => ball.setSpeedMultiplier(1.0));
+                }, 5000);
+                break;
+            case 'shrink':
+                // Shrink paddle
+                this.paddle.setWidthMultiplier(0.6);
+                setTimeout(() => {
+                    this.paddle.setWidthMultiplier(1.0);
+                }, 5000);
+                break;
+        }
+    }
+
+    /**
+     * Spawn reward gems when boss is defeated
+     * @private
+     */
+    _spawnBossReward() {
+        // Spawn multiple gems at boss location
+        for (let i = 0; i < 10; i++) {
+            const angle = (Math.PI * 2 / 10) * i;
+            const distance = 30 + Math.random() * 20;
+            const x = this.boss.x + Math.cos(angle) * distance;
+            const y = this.boss.y + Math.sin(angle) * distance;
+            this.powerGems.push(new PowerGem(x, y));
         }
     }
 
@@ -348,6 +482,13 @@ export class Game {
                 block.alive = false;
                 this.state.addScore(50); // Destroy score
                 this.state.incrementCombo();
+
+                // Track destroyed block for boss regeneration
+                this.destroyedBlocks.push({
+                    row: block.row,
+                    col: block.col,
+                    originalColor: block.color
+                });
 
                 // Gem drop check
                 if (block.gemDrop === 'guaranteed' || block.gemDrop === 'infinite') {
@@ -601,6 +742,11 @@ export class Game {
         // Draw balls
         for (const ball of this.balls) {
             ball.render(ctx);
+        }
+
+        // Draw boss
+        if (this.boss) {
+            this.boss.render(ctx);
         }
 
         // Draw game state overlays

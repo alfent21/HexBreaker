@@ -25,6 +25,10 @@ export class GameState {
         this.stageData = null;
         this.blocks = [];
         this.initialBlockCount = 0;
+
+        // Boss data
+        this.hasBoss = false;
+        this.bossDefeated = false;
     }
 
     /**
@@ -68,6 +72,10 @@ export class GameState {
         this.initialBlockCount = this.blocks.filter(b =>
             b.blockType !== 'infinite' && b.gemDrop !== 'infinite'
         ).length;
+
+        // Boss state
+        this.hasBoss = !!data.boss;
+        this.bossDefeated = false;
     }
 
     /**
@@ -123,7 +131,20 @@ export class GameState {
             b.blockType !== 'infinite' &&
             b.gemDrop !== 'infinite'
         );
+
+        // If stage has boss, boss must also be defeated
+        if (this.hasBoss && !this.bossDefeated) {
+            return false;
+        }
+
         return aliveDestructible.length === 0;
+    }
+
+    /**
+     * Mark boss as defeated
+     */
+    setBossDefeated() {
+        this.bossDefeated = true;
     }
 
     /**
