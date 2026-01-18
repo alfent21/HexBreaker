@@ -40,8 +40,6 @@ export class Game {
         // Entities
         this.balls = [];
         this.paddle = null;
-        this.balls = [];
-        this.paddle = null;
         this.powerGems = [];
         this.lasers = [];
         this.laserStock = 0;
@@ -65,9 +63,6 @@ export class Game {
         this.canvasWidth = canvas.width;
         this.canvasHeight = canvas.height;
         this.gridSize = GRID_SIZES.medium;
-
-        // DEBUG: Start with gems for testing
-        this.state.gems = 50;
 
         // Bind methods
         this._gameLoop = this._gameLoop.bind(this);
@@ -121,8 +116,6 @@ export class Game {
         requestAnimationFrame(this._gameLoop);
 
         // Update UI
-        // DEBUG: Ensure gems are set for testing (reset() clears them)
-        this.state.gems = 50;
         this._updateUI();
     }
 
@@ -351,8 +344,6 @@ export class Game {
             if (block.durability <= 0) {
                 block.alive = false;
                 this.state.addScore(50); // Destroy score
-                this.state.incrementCombo();
-
                 this.state.incrementCombo();
 
                 // Gem drop check

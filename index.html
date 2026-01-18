@@ -352,6 +352,7 @@
     <script type="module">
         import { editor } from './editor/core/Editor.js?v=2';
         import { UIController } from './editor/ui/UIController.js?v=2';
+        import { pixelToHex } from './shared/HexMath.js';
 
         // Initialize on DOM ready
         document.addEventListener('DOMContentLoaded', () => {
@@ -379,7 +380,7 @@
             });
 
             // Canvas info updates
-            overlayCanvas.addEventListener('mousemove', async (e) => {
+            overlayCanvas.addEventListener('mousemove', (e) => {
                 const rect = overlayCanvas.getBoundingClientRect();
                 const screenX = e.clientX - rect.left;
                 const screenY = e.clientY - rect.top;
@@ -389,7 +390,6 @@
                     `X: ${Math.round(coords.x)}, Y: ${Math.round(coords.y)}`;
 
                 const gridSize = editor.renderSystem.gridSize;
-                const { pixelToHex } = await import('./shared/HexMath.js');
                 const hex = pixelToHex(coords.x, coords.y, gridSize);
                 document.getElementById('hex-pos-info').textContent =
                     `Row: ${hex.row}, Col: ${hex.col}`;

@@ -174,4 +174,4 @@ export const STAGE_DEFAULTS = {
 };
 
 // Project file version
-export const PROJECT_VERSION = '4.0';
+export const PROJECT_VERSION = '5.0';
