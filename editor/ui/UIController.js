@@ -1,0 +1,640 @@
+/**
+ * UIController.js - UI Event Handling
+ * Based on specification.md Section 3
+ * 
+ * Handles UI panel interactions and updates.
+ */
+
+import { TOOLS, BRUSH_SIZES, LINE_TYPES, DURABILITY_COLORS, MESSAGE_TYPES } from '../core/Config.js';
+
+export class UIController {
+    /**
+     * @param {import('../core/Editor.js').Editor} editor
+     */
+    constructor(editor) {
+        this.editor = editor;
+
+        // UI element references
+        this.elements = {};
+
+        // Message queue
+        this.messages = [];
+        this.maxMessages = 50;
+    }
+
+    /**
+     * Initialize UI
+     */
+    init() {
+        this._cacheElements();
+        this._bindUIEvents();
+        this._bindEditorEvents();
+        this._initToolbar();
+        this._initToolPalette();
+        this._initLayerPanel();
+
+        // Initialize stage selector with default stage
+        this._updateStageSelector();
+
+        console.log('UI Controller initialized');
+    }
+
+    /**
+     * Cache DOM element references
+     * @private
+     */
+    _cacheElements() {
+        this.elements = {
+            // Toolbar
+            toolbar: document.getElementById('toolbar'),
+            newBtn: document.getElementById('btn-new'),
+            openBtn: document.getElementById('btn-open'),
+            saveBtn: document.getElementById('btn-save'),
+            undoBtn: document.getElementById('btn-undo'),
+            redoBtn: document.getElementById('btn-redo'),
+            zoomLevel: document.getElementById('zoom-level'),
+            gridToggle: document.getElementById('grid-toggle'),
+            lineToggle: document.getElementById('line-toggle'),
+            stageSelect: document.getElementById('stage-select'),
+            addStageBtn: document.getElementById('btn-add-stage'),
+            previewBtn: document.getElementById('btn-preview'),
+
+            // New stage dialog
+            newStageDialog: document.getElementById('new-stage-dialog'),
+            newStageName: document.getElementById('new-stage-name'),
+            newStageImage: document.getElementById('new-stage-image'),
+            newStageWidth: document.getElementById('new-stage-width'),
+            newStageHeight: document.getElementById('new-stage-height'),
+            newStageCancelBtn: document.getElementById('new-stage-cancel-btn'),
+            newStageCreateBtn: document.getElementById('new-stage-create-btn'),
+            newStageCloseBtn: document.getElementById('new-stage-cancel'),
+
+            // Tool palette
+            toolPalette: document.getElementById('tool-palette'),
+            toolButtons: {},
+            brushSizeButtons: {},
+
+            // Block settings
+            durabilityButtons: document.querySelectorAll('.durability-btn'),
+            colorPicker: document.getElementById('block-color'),
+
+            // Line properties
+            lineTypeButtons: document.querySelectorAll('.line-type-btn'),
+            lineColorPicker: document.getElementById('line-color'),
+            lineThickness: document.getElementById('line-thickness'),
+            lineOpacity: document.getElementById('line-opacity'),
+            paddleControl: document.getElementById('paddle-control'),
+
+            // Layer panel
+            layerList: document.getElementById('layer-list'),
+            addImageBtn: document.getElementById('btn-add-image'),
+            addBlockLayerBtn: document.getElementById('btn-add-block-layer'),
+
+            // Message panel
+            messageList: document.getElementById('message-list'),
+            clearMessagesBtn: document.getElementById('btn-clear-messages')
+        };
+
+        // Cache tool buttons
+        const tools = [TOOLS.SELECT, TOOLS.BRUSH, TOOLS.ERASER, TOOLS.FILL, TOOLS.LINE, TOOLS.EYEDROPPER];
+        for (const tool of tools) {
+            this.elements.toolButtons[tool] = document.getElementById(`tool-${tool}`);
+        }
+
+        // Cache brush size buttons
+        for (const size of Object.keys(BRUSH_SIZES)) {
+            this.elements.brushSizeButtons[size] = document.getElementById(`brush-${size.toLowerCase()}`);
+        }
+    }
+
+    /**
+     * Bind UI event listeners
+     * @private
+     */
+    _bindUIEvents() {
+        // Toolbar buttons
+        this.elements.newBtn?.addEventListener('click', () => this.editor.newProject());
+        this.elements.openBtn?.addEventListener('click', () => this._openProject());
+        this.elements.saveBtn?.addEventListener('click', () => this._saveProject());
+
+        this.elements.gridToggle?.addEventListener('change', (e) => {
+            this.editor.renderSystem.showGrid = e.target.checked;
+            this.editor.render();
+        });
+
+        this.elements.lineToggle?.addEventListener('change', (e) => {
+            this.editor.renderSystem.showLines = e.target.checked;
+            this.editor.render();
+        });
+
+        // Stage selector
+        this.elements.stageSelect?.addEventListener('change', (e) => {
+            this.editor.switchStage(e.target.value);
+        });
+
+        // Add stage button
+        this.elements.addStageBtn?.addEventListener('click', () => {
+            this._showNewStageDialog();
+        });
+
+        // Preview button
+        this.elements.previewBtn?.addEventListener('click', () => {
+            this.editor.previewStage();
+        });
+
+        // New stage dialog
+        this.elements.newStageCloseBtn?.addEventListener('click', () => this._hideNewStageDialog());
+        this.elements.newStageCancelBtn?.addEventListener('click', () => this._hideNewStageDialog());
+        this.elements.newStageCreateBtn?.addEventListener('click', () => this._createNewStage());
+
+        // Auto-fill size from image
+        this.elements.newStageImage?.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const img = new Image();
+                img.onload = () => {
+                    this.elements.newStageWidth.value = img.width;
+                    this.elements.newStageHeight.value = img.height;
+                };
+                img.src = URL.createObjectURL(file);
+            }
+        });
+
+        // Tool buttons
+        for (const [tool, btn] of Object.entries(this.elements.toolButtons)) {
+            btn?.addEventListener('click', () => this.editor.setTool(tool));
+        }
+
+        // Brush size buttons
+        for (const [size, btn] of Object.entries(this.elements.brushSizeButtons)) {
+            btn?.addEventListener('click', () => {
+                this.editor.blockManager.setBrushSize(size);
+                this._updateBrushSizeUI();
+            });
+        }
+
+        // Durability buttons
+        this.elements.durabilityButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const durability = parseInt(btn.dataset.durability);
+                this.editor.blockManager.setDurability(durability);
+                this._updateDurabilityUI();
+            });
+        });
+
+        // Color picker
+        this.elements.colorPicker?.addEventListener('input', (e) => {
+            this.editor.blockManager.setColor(e.target.value);
+        });
+
+        // Line type buttons (exclusive, switches to line tool)
+        this.elements.lineTypeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const type = btn.dataset.type;
+
+                // Update active state
+                this.elements.lineTypeButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                // Switch to line tool
+                this.editor.setTool(TOOLS.LINE);
+
+                // Set line type for new lines
+                this.editor.lineManager.currentLineType = type;
+
+                // Update selected line if any
+                const selectedLine = this.editor.lineManager.getSelectedLine();
+                if (selectedLine) {
+                    this.editor.lineManager.updateLine(selectedLine.id, { type });
+                }
+            });
+        });
+
+        // Line properties
+        this.elements.lineColorPicker?.addEventListener('input', (e) => {
+            const selectedLine = this.editor.lineManager.getSelectedLine();
+            if (selectedLine) {
+                this.editor.lineManager.updateLine(selectedLine.id, { color: e.target.value });
+            }
+        });
+
+        this.elements.lineThickness?.addEventListener('input', (e) => {
+            const selectedLine = this.editor.lineManager.getSelectedLine();
+            if (selectedLine) {
+                this.editor.lineManager.updateLine(selectedLine.id, { thickness: parseInt(e.target.value) });
+            }
+        });
+
+        this.elements.lineOpacity?.addEventListener('input', (e) => {
+            const selectedLine = this.editor.lineManager.getSelectedLine();
+            if (selectedLine) {
+                this.editor.lineManager.updateLine(selectedLine.id, { opacity: parseFloat(e.target.value) });
+            }
+        });
+
+        // Layer buttons
+        this.elements.addImageBtn?.addEventListener('click', () => this.editor.importImages());
+        this.elements.addBlockLayerBtn?.addEventListener('click', () => {
+            const name = prompt('ブロックレイヤー名:', 'New Block Layer');
+            if (name) {
+                this.editor.addBlockLayer(name);
+            }
+        });
+
+        // Message panel
+        this.elements.clearMessagesBtn?.addEventListener('click', () => this._clearMessages());
+    }
+
+    /**
+     * Bind editor event handlers
+     * @private
+     */
+    _bindEditorEvents() {
+        this.editor.on('toolChanged', (tool) => this._updateToolUI(tool));
+        this.editor.on('zoomChanged', (zoom) => this._updateZoomUI(zoom));
+        this.editor.on('layersChanged', () => this._updateLayerList());
+        this.editor.on('activeLayerChanged', () => this._updateLayerList());
+        this.editor.on('lineSelected', (line) => this._updateLinePropertiesUI(line));
+        this.editor.on('durabilityChanged', () => this._updateDurabilityUI());
+        this.editor.on('brushSizeChanged', () => this._updateBrushSizeUI());
+        this.editor.on('message', (msg) => this._addMessage(msg.type, msg.text));
+
+        // Stage events
+        this.editor.on('stagesChanged', () => this._updateStageSelector());
+        this.editor.on('currentStageChanged', (stage) => this._onStageChanged(stage));
+
+        this.editor.on('save', () => this._saveProject());
+    }
+
+    /**
+     * Initialize toolbar state
+     * @private
+     */
+    _initToolbar() {
+        // Set initial grid toggle state
+        if (this.elements.gridToggle) {
+            this.elements.gridToggle.checked = this.editor.renderSystem?.showGrid ?? true;
+        }
+        if (this.elements.lineToggle) {
+            this.elements.lineToggle.checked = this.editor.renderSystem?.showLines ?? true;
+        }
+
+        // Set initial grid size
+        if (this.elements.gridSizeSelect) {
+            this.elements.gridSizeSelect.value = this.editor.currentGridSize;
+        }
+    }
+
+    /**
+     * Initialize tool palette
+     * @private
+     */
+    _initToolPalette() {
+        this._updateToolUI(this.editor.currentTool);
+        this._updateBrushSizeUI();
+        this._updateDurabilityUI();
+    }
+
+    /**
+     * Initialize layer panel
+     * @private
+     */
+    _initLayerPanel() {
+        this._updateLayerList();
+    }
+
+    /**
+     * Update tool button states
+     * @private
+     */
+    _updateToolUI(activeTool) {
+        for (const [tool, btn] of Object.entries(this.elements.toolButtons)) {
+            if (btn) {
+                btn.classList.toggle('active', tool === activeTool);
+            }
+        }
+    }
+
+    /**
+     * Update brush size button states
+     * @private
+     */
+    _updateBrushSizeUI() {
+        const currentSize = this.editor.blockManager.brushSize;
+        for (const [size, btn] of Object.entries(this.elements.brushSizeButtons)) {
+            if (btn) {
+                btn.classList.toggle('active', size === currentSize);
+            }
+        }
+    }
+
+    /**
+     * Update durability button states
+     * @private
+     */
+    _updateDurabilityUI() {
+        const currentDurability = this.editor.blockManager.currentDurability;
+        this.elements.durabilityButtons.forEach(btn => {
+            const durability = parseInt(btn.dataset.durability);
+            btn.classList.toggle('active', durability === currentDurability);
+            btn.style.backgroundColor = DURABILITY_COLORS[durability];
+        });
+    }
+
+    /**
+     * Update zoom display
+     * @private
+     */
+    _updateZoomUI(zoom) {
+        if (this.elements.zoomLevel) {
+            this.elements.zoomLevel.textContent = `${Math.round(zoom * 100)}%`;
+        }
+    }
+
+    /**
+     * Update layer list
+     * @private
+     */
+    _updateLayerList() {
+        const list = this.elements.layerList;
+        if (!list) return;
+
+        list.innerHTML = '';
+
+        const layers = this.editor.layerManager.getAllLayers().slice().reverse();
+        const activeId = this.editor.layerManager.activeLayerId;
+
+        for (const layer of layers) {
+            const item = document.createElement('div');
+            item.className = `layer-item ${layer.id === activeId ? 'active' : ''}`;
+            item.dataset.layerId = layer.id;
+
+            item.innerHTML = `
+                <input type="checkbox" class="layer-checkbox" 
+                    ${this.editor.layerManager.checkedLayerIds.has(layer.id) ? 'checked' : ''}>
+                <span class="layer-visibility ${layer.visible ? '' : 'hidden'}" 
+                    data-action="toggle-visibility">👁</span>
+                <span class="layer-icon ${layer.type === 'image' ? 'layer-type-image' : 'layer-type-block'}">
+                    ${layer.type === 'image' ? '🖼️' : '🧱'}
+                </span>
+                <span class="layer-name">${layer.name}</span>
+                <div class="layer-actions">
+                    <button class="layer-action-btn" data-action="delete" title="削除">🗑️</button>
+                </div>
+            `;
+
+            // Click to select
+            item.addEventListener('click', (e) => {
+                if (e.target.closest('[data-action]') || e.target.type === 'checkbox') return;
+                this.editor.layerManager.setActiveLayer(layer.id);
+            });
+
+            // Checkbox for multi-select
+            item.querySelector('.layer-checkbox').addEventListener('change', (e) => {
+                this.editor.layerManager.toggleLayerCheck(layer.id);
+            });
+
+            // Visibility toggle
+            item.querySelector('[data-action="toggle-visibility"]').addEventListener('click', () => {
+                this.editor.layerManager.toggleLayerVisibility(layer.id);
+            });
+
+            // Delete button
+            item.querySelector('[data-action="delete"]').addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (confirm(`レイヤー "${layer.name}" を削除しますか？`)) {
+                    this.editor.layerManager.removeLayer(layer.id);
+                }
+            });
+
+            list.appendChild(item);
+        }
+    }
+
+    /**
+     * Update line properties panel
+     * @private
+     */
+    _updateLinePropertiesUI(line) {
+        if (!line) {
+            // Clear/disable line properties
+            return;
+        }
+
+        // Update type buttons
+        this.elements.lineTypeButtons.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.type === line.type);
+        });
+
+        // Update color
+        if (this.elements.lineColorPicker) {
+            this.elements.lineColorPicker.value = line.color;
+        }
+
+        // Update thickness
+        if (this.elements.lineThickness) {
+            this.elements.lineThickness.value = line.thickness;
+        }
+
+        // Update opacity
+        if (this.elements.lineOpacity) {
+            this.elements.lineOpacity.value = line.opacity;
+        }
+    }
+
+    /**
+     * Open project file
+     * @private
+     */
+    _openProject() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.hbp,.json';
+
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+                await this.editor.loadProjectData(data);
+            } catch (error) {
+                this._addMessage('error', `プロジェクトの読み込みに失敗しました: ${error.message}`);
+            }
+        };
+
+        input.click();
+    }
+
+    /**
+     * Save project file
+     * @private
+     */
+    _saveProject() {
+        const data = this.editor.getProjectData();
+        const json = JSON.stringify(data, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${this.editor.projectName || 'project'}.hbp`;
+        a.click();
+
+        URL.revokeObjectURL(url);
+        this.editor.isDirty = false;
+
+        this._addMessage('info', 'プロジェクトを保存しました');
+    }
+
+    /**
+     * Add message to message panel
+     * @private
+     */
+    _addMessage(type, text) {
+        const typeConfig = MESSAGE_TYPES[type.toUpperCase()] || MESSAGE_TYPES.INFO;
+
+        const message = {
+            type,
+            text,
+            time: new Date().toLocaleTimeString()
+        };
+
+        this.messages.push(message);
+        if (this.messages.length > this.maxMessages) {
+            this.messages.shift();
+        }
+
+        this._renderMessages();
+    }
+
+    /**
+     * Render messages
+     * @private
+     */
+    _renderMessages() {
+        const list = this.elements.messageList;
+        if (!list) return;
+
+        list.innerHTML = '';
+
+        for (const msg of this.messages.slice(-10)) {
+            const typeConfig = MESSAGE_TYPES[msg.type.toUpperCase()] || MESSAGE_TYPES.INFO;
+            const div = document.createElement('div');
+            div.className = `message ${typeConfig.className}`;
+            div.innerHTML = `
+                <span class="message-icon">${typeConfig.icon}</span>
+                <span class="message-text">${msg.text}</span>
+                <span class="message-time">${msg.time}</span>
+            `;
+            list.appendChild(div);
+        }
+
+        // Scroll to bottom
+        list.scrollTop = list.scrollHeight;
+    }
+
+    /**
+     * Clear all messages
+     * @private
+     */
+    _clearMessages() {
+        this.messages = [];
+        this._renderMessages();
+    }
+
+    // =========================================
+    // Stage Management Methods
+    // =========================================
+
+    /**
+     * Show new stage dialog
+     * @private
+     */
+    _showNewStageDialog() {
+        const dialog = this.elements.newStageDialog;
+        if (!dialog) return;
+
+        // Reset form
+        this.elements.newStageName.value = '';
+        this.elements.newStageImage.value = '';
+        this.elements.newStageWidth.value = '1280';
+        this.elements.newStageHeight.value = '720';
+        document.querySelector('input[name="grid-size"][value="medium"]')?.click();
+
+        dialog.classList.remove('hidden');
+    }
+
+    /**
+     * Hide new stage dialog
+     * @private
+     */
+    _hideNewStageDialog() {
+        this.elements.newStageDialog?.classList.add('hidden');
+    }
+
+    /**
+     * Create new stage from dialog
+     * @private
+     */
+    async _createNewStage() {
+        const name = this.elements.newStageName.value || `Stage ${this.editor.getAllStages().length + 1}`;
+        const width = parseInt(this.elements.newStageWidth.value) || 1280;
+        const height = parseInt(this.elements.newStageHeight.value) || 720;
+        const gridSize = document.querySelector('input[name="grid-size"]:checked')?.value || 'medium';
+        const imageFile = this.elements.newStageImage.files?.[0];
+
+        // Create stage
+        const stage = this.editor.createStage({
+            name,
+            width,
+            height,
+            gridSize
+        });
+
+        // If base image provided, add it as first layer
+        if (imageFile && stage) {
+            try {
+                await this.editor.addImageLayer(imageFile);
+            } catch (error) {
+                this._addMessage('error', `画像の追加に失敗: ${error.message}`);
+            }
+        }
+
+        this._hideNewStageDialog();
+        this._updateStageSelector();
+    }
+
+    /**
+     * Update stage selector dropdown
+     * @private
+     */
+    _updateStageSelector() {
+        const select = this.elements.stageSelect;
+        if (!select) return;
+
+        const stages = this.editor.getAllStages();
+        const currentStage = this.editor.getCurrentStage();
+
+        select.innerHTML = stages.map(stage =>
+            `<option value="${stage.id}" ${stage.id === currentStage?.id ? 'selected' : ''}>
+                ${stage.name}
+            </option>`
+        ).join('');
+    }
+
+    /**
+     * Handle stage change
+     * @private
+     */
+    _onStageChanged(stage) {
+        this._updateStageSelector();
+        this._updateLayerList();
+
+        if (stage) {
+            this._addMessage('info', `ステージ「${stage.name}」を選択しました`);
+        }
+    }
+}
+

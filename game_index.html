@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HexBreaker Game</title>
+    <link rel="stylesheet" href="css/game.css">
+</head>
+
+<body>
+    <div class="game-container">
+        <div class="game-canvas-wrapper">
+            <canvas id="gameCanvas" width="1280" height="720"></canvas>
+
+            <!-- HUD -->
+            <div class="game-hud">
+                <div class="hud-left">
+                    <div class="gem-counter">
+                        <span class="gem-icon">💎</span>
+                        <span class="gem-count" id="gem-count">0</span>
+                    </div>
+                </div>
+                <div class="hud-center">
+                    <div class="score-display">
+                        <span class="score-label">SCORE:</span>
+                        <span class="score-value" id="score-value">0</span>
+                    </div>
+                </div>
+                <div class="hud-right">
+                    <div class="lives-display" id="lives-display">
+                        <span class="life-icon">❤️</span>
+                        <span class="life-icon">❤️</span>
+                        <span class="life-icon">❤️</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Weapon Panel -->
+            <div class="weapon-panel">
+                <div class="weapon-slot" data-weapon="slow">
+                    <span class="weapon-icon">🐢</span>
+                    <span class="weapon-name">SLOW</span>
+                    <div class="weapon-cost">
+                        <span class="weapon-cost-pip"></span>
+                    </div>
+                    <span class="weapon-key">[1]</span>
+                </div>
+                <div class="weapon-slot" data-weapon="wide">
+                    <span class="weapon-icon">↔️</span>
+                    <span class="weapon-name">EXPD</span>
+                    <div class="weapon-cost">
+                        <span class="weapon-cost-pip"></span>
+                        <span class="weapon-cost-pip"></span>
+                    </div>
+                    <span class="weapon-key">[2]</span>
+                </div>
+                <div class="weapon-slot" data-weapon="double">
+                    <span class="weapon-icon">⚫⚫</span>
+                    <span class="weapon-name">DBLE</span>
+                    <div class="weapon-cost">
+                        <span class="weapon-cost-pip"></span>
+                        <span class="weapon-cost-pip"></span>
+                    </div>
+                    <span class="weapon-key">[3]</span>
+                </div>
+                <div class="weapon-slot" data-weapon="laser">
+                    <span class="weapon-icon">🔫</span>
+                    <span class="weapon-name">LASR</span>
+                    <div class="weapon-cost">
+                        <span class="weapon-cost-pip"></span>
+                        <span class="weapon-cost-pip"></span>
+                        <span class="weapon-cost-pip"></span>
+                    </div>
+                    <span class="weapon-key">[4]</span>
+                </div>
+                <div class="weapon-slot" data-weapon="shield">
+                    <span class="weapon-icon">🛡️</span>
+                    <span class="weapon-name">SHLD</span>
+                    <div class="weapon-cost">
+                        <span class="weapon-cost-pip"></span>
+                        <span class="weapon-cost-pip"></span>
+                        <span class="weapon-cost-pip"></span>
+                        <span class="weapon-cost-pip"></span>
+                    </div>
+                    <span class="weapon-key">[5]</span>
+                </div>
+                <div class="weapon-slot" data-weapon="magnet">
+                    <span class="weapon-icon">🧲</span>
+                    <span class="weapon-name">MGNT</span>
+                    <div class="weapon-cost">
+                        <span class="weapon-cost-pip"></span>
+                        <span class="weapon-cost-pip"></span>
+                        <span class="weapon-cost-pip"></span>
+                        <span class="weapon-cost-pip"></span>
+                    </div>
+                    <span class="weapon-key">[6]</span>
+                </div>
+                <div class="weapon-slot" data-weapon="ghost">
+                    <span class="weapon-icon">👻</span>
+                    <span class="weapon-name">GHST</span>
+                    <div class="weapon-cost">
+                        <span class="weapon-cost-pip"></span>
+                        <span class="weapon-cost-pip"></span>
+                        <span class="weapon-cost-pip"></span>
+                        <span class="weapon-cost-pip"></span>
+                    </div>
+                    <span class="weapon-key">[7]</span>
+                </div>
+            </div>
+
+            <!-- Combo Display -->
+            <div class="combo-display" id="combo-display">
+                <div class="combo-count" id="combo-count">1</div>
+                <div class="combo-label">COMBO</div>
+            </div>
+
+            <!-- Game Overlays -->
+            <div class="game-overlay" id="overlay-gameover">
+                <h1 class="game-overlay-title game-over">GAME OVER</h1>
+                <p class="game-overlay-score">Score: <span id="final-score">0</span></p>
+                <div class="game-overlay-buttons">
+                    <button class="btn btn--primary" id="btn-continue">コンティニュー</button>
+                    <button class="btn" id="btn-quit">終了</button>
+                </div>
+            </div>
+
+            <div class="game-overlay" id="overlay-clear">
+                <h1 class="game-overlay-title stage-clear">STAGE CLEAR!</h1>
+                <p class="game-overlay-score">Score: <span id="clear-score">0</span></p>
+                <div class="game-overlay-buttons">
+                    <button class="btn btn--primary" id="btn-next">次のステージ</button>
+                </div>
+            </div>
+
+            <!-- Tips -->
+            <div class="tips-display" id="tips-display">
+                💡 右クリックを押し続けると時間を加速できます
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { Game } from './game/Game.js';
+
+        // Initialize game on DOM ready
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('gameCanvas');
+            const game = new Game(canvas);
+
+            // UI element references
+            const scoreValue = document.getElementById('score-value');
+            const gemCount = document.getElementById('gem-count');
+            const livesDisplay = document.getElementById('lives-display');
+            const comboDisplay = document.getElementById('combo-display');
+            const comboCount = document.getElementById('combo-count');
+            const overlayGameOver = document.getElementById('overlay-gameover');
+            const overlayClear = document.getElementById('overlay-clear');
+            const finalScore = document.getElementById('final-score');
+            const clearScore = document.getElementById('clear-score');
+
+            // UI update callbacks
+            game.onScoreUpdate = (score) => {
+                scoreValue.textContent = score.toLocaleString();
+            };
+
+            game.onLivesUpdate = (lives) => {
+                livesDisplay.innerHTML = '❤️'.repeat(lives);
+            };
+
+            game.onGemsUpdate = (gems) => {
+                gemCount.textContent = gems;
+            };
+
+            game.onComboUpdate = (combo) => {
+                if (combo > 1) {
+                    comboDisplay.classList.add('active');
+                    comboCount.textContent = combo;
+                } else {
+                    comboDisplay.classList.remove('active');
+                }
+            };
+
+            game.onWeaponUpdate = (availability) => {
+                const slots = document.querySelectorAll('.weapon-slot');
+                slots.forEach(slot => {
+                    const weaponId = slot.dataset.weapon;
+                    if (availability[weaponId]) {
+                        slot.classList.add('can-afford');
+                    } else {
+                        slot.classList.remove('can-afford');
+                    }
+                });
+            };
+
+            game.onGameOver = (score) => {
+                finalScore.textContent = score.toLocaleString();
+                overlayGameOver.classList.add('active');
+            };
+
+            game.onStageClear = (score) => {
+                clearScore.textContent = score.toLocaleString();
+                overlayClear.classList.add('active');
+            };
+
+            // Weapon slot click handlers
+            document.querySelectorAll('.weapon-slot').forEach(slot => {
+                slot.addEventListener('click', () => {
+                    const weaponId = slot.dataset.weapon;
+                    game.input.onWeapon(weaponId);
+                });
+            });
+
+            // Button handlers
+            document.getElementById('btn-continue')?.addEventListener('click', () => {
+                overlayGameOver.classList.remove('active');
+                game.restart();
+            });
+
+            document.getElementById('btn-quit')?.addEventListener('click', () => {
+                overlayGameOver.classList.remove('active');
+                game.stop();
+            });
+
+            document.getElementById('btn-next')?.addEventListener('click', () => {
+                overlayClear.classList.remove('active');
+                game.restart(); // For now, just restart same stage
+            });
+
+            // Check for stage data from editor (via localStorage)
+            const stageDataJson = localStorage.getItem('hexbreaker_preview_stage');
+            if (stageDataJson) {
+                try {
+                    const stageData = JSON.parse(stageDataJson);
+                    game.loadStage(stageData);
+                    localStorage.removeItem('hexbreaker_preview_stage');
+                } catch (e) {
+                    console.error('Failed to load stage data:', e);
+                    game.loadTestStage();
+                }
+            } else {
+                // Load test stage for demonstration
+                game.loadTestStage();
+            }
+
+            console.log('HexBreaker Game initialized');
+        });
+    </script>
+</body>
+
+</html>

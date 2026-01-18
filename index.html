@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HexBreaker Editor</title>
+    <link rel="stylesheet" href="css/editor.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="editor-container">
+        <!-- Menu Bar -->
+        <nav class="menu-bar">
+            <div class="menu-item" data-menu="file">
+                ファイル
+                <div class="menu-dropdown">
+                    <div class="menu-dropdown-item" id="menu-new">
+                        <span>新規作成</span>
+                        <span class="shortcut">Ctrl+N</span>
+                    </div>
+                    <div class="menu-dropdown-item" id="menu-open">
+                        <span>開く</span>
+                        <span class="shortcut">Ctrl+O</span>
+                    </div>
+                    <div class="menu-dropdown-item" id="menu-save">
+                        <span>保存</span>
+                        <span class="shortcut">Ctrl+S</span>
+                    </div>
+                    <div class="context-menu-separator"></div>
+                    <div class="menu-dropdown-item" id="menu-export">
+                        <span>エクスポート</span>
+                    </div>
+                </div>
+            </div>
+            <div class="menu-item" data-menu="edit">
+                編集
+                <div class="menu-dropdown">
+                    <div class="menu-dropdown-item" id="menu-undo">
+                        <span>元に戻す</span>
+                        <span class="shortcut">Ctrl+Z</span>
+                    </div>
+                    <div class="menu-dropdown-item" id="menu-redo">
+                        <span>やり直す</span>
+                        <span class="shortcut">Ctrl+Y</span>
+                    </div>
+                </div>
+            </div>
+            <div class="menu-item" data-menu="view">
+                表示
+                <div class="menu-dropdown">
+                    <div class="menu-dropdown-item" id="menu-toggle-grid">
+                        <span>グリッド表示</span>
+                        <span class="shortcut">H</span>
+                    </div>
+                    <div class="menu-dropdown-item" id="menu-toggle-lines">
+                        <span>線分表示</span>
+                    </div>
+                    <div class="menu-dropdown-item" id="menu-reset-view">
+                        <span>ビューをリセット</span>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <div class="toolbar-group">
+                <button class="btn btn--icon" id="btn-new" data-tooltip="新規作成">
+                    <i class="fas fa-file"></i>
+                </button>
+                <button class="btn btn--icon" id="btn-open" data-tooltip="開く">
+                    <i class="fas fa-folder-open"></i>
+                </button>
+                <button class="btn btn--icon" id="btn-save" data-tooltip="保存">
+                    <i class="fas fa-save"></i>
+                </button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-group">
+                <button class="btn btn--icon" id="btn-undo" data-tooltip="元に戻す (Ctrl+Z)">
+                    <i class="fas fa-undo"></i>
+                </button>
+                <button class="btn btn--icon" id="btn-redo" data-tooltip="やり直す (Ctrl+Y)">
+                    <i class="fas fa-redo"></i>
+                </button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-group view-toggle">
+                <label>
+                    <input type="checkbox" id="grid-toggle" checked>
+                    グリッド
+                </label>
+                <label>
+                    <input type="checkbox" id="line-toggle" checked>
+                    ライン
+                </label>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-group">
+                <label class="label" style="margin-right: 4px;">ステージ:</label>
+                <select class="select" id="stage-select" style="min-width: 120px;">
+                    <!-- Populated dynamically -->
+                </select>
+                <button class="btn btn--icon btn--small" id="btn-add-stage" data-tooltip="新規ステージ">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-separator"></div>
+
+            <div class="toolbar-group">
+                <button class="btn btn--icon btn--primary" id="btn-preview" data-tooltip="プレビュー (P)">
+                    <i class="fas fa-play"></i>
+                    プレビュー
+                </button>
+            </div>
+
+            <div class="toolbar-group zoom-controls">
+                <button class="btn btn--icon btn--small" id="btn-zoom-out">
+                    <i class="fas fa-search-minus"></i>
+                </button>
+                <span id="zoom-level" class="zoom-level">100%</span>
+                <button class="btn btn--icon btn--small" id="btn-zoom-in">
+                    <i class="fas fa-search-plus"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Left Panel -->
+        <div class="left-panel">
+            <!-- Tool Palette -->
+            <div class="panel-section">
+                <div class="panel-title">ツール</div>
+                <div class="tool-palette" id="tool-palette">
+                    <button class="tool-btn active" id="tool-brush" data-tooltip="ブラシ (B)">
+                        <i class="fas fa-paint-brush"></i>
+                    </button>
+                    <button class="tool-btn" id="tool-eraser" data-tooltip="消しゴム (E)">
+                        <i class="fas fa-eraser"></i>
+                    </button>
+                    <button class="tool-btn" id="tool-fill" data-tooltip="塗りつぶし (G)">
+                        <i class="fas fa-fill-drip"></i>
+                    </button>
+                    <button class="tool-btn" id="tool-select" data-tooltip="選択 (V)">
+                        <i class="fas fa-mouse-pointer"></i>
+                    </button>
+                    <button class="tool-btn" id="tool-line" data-tooltip="ライン (L)">
+                        <i class="fas fa-bezier-curve"></i>
+                    </button>
+                    <button class="tool-btn" id="tool-eyedropper" data-tooltip="スポイト (I)">
+                        <i class="fas fa-eye-dropper"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Brush Size -->
+            <div class="panel-section">
+                <div class="panel-title">ブラシサイズ</div>
+                <div class="brush-size-selector">
+                    <button class="brush-size-btn" id="brush-s">S</button>
+                    <button class="brush-size-btn active" id="brush-m">M</button>
+                    <button class="brush-size-btn" id="brush-l">L</button>
+                </div>
+            </div>
+
+            <!-- Block Settings -->
+            <div class="panel-section">
+                <div class="panel-title">ブロック設定</div>
+                <div class="form-group">
+                    <label class="label">耐久値</label>
+                    <div class="durability-selector">
+                        <button class="durability-btn active" data-durability="1"
+                            style="background-color: #64B5F6;">1</button>
+                        <button class="durability-btn" data-durability="2" style="background-color: #4FC3F7;">2</button>
+                        <button class="durability-btn" data-durability="3" style="background-color: #4DD0E1;">3</button>
+                        <button class="durability-btn" data-durability="4" style="background-color: #4DB6AC;">4</button>
+                        <button class="durability-btn" data-durability="5" style="background-color: #81C784;">5</button>
+                        <button class="durability-btn" data-durability="6" style="background-color: #AED581;">6</button>
+                        <button class="durability-btn" data-durability="7" style="background-color: #DCE775;">7</button>
+                        <button class="durability-btn" data-durability="8" style="background-color: #FFD54F;">8</button>
+                        <button class="durability-btn" data-durability="9" style="background-color: #FF8A65;">9</button>
+                        <button class="durability-btn" data-durability="10"
+                            style="background-color: #E57373;">10</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="label">色</label>
+                    <input type="color" class="color-picker" id="block-color" value="#64B5F6">
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Line Properties -->
+            <div class="panel-section">
+                <div class="panel-title">ライン設定</div>
+                <div class="form-group line-type-selector">
+                    <button class="line-type-btn active" data-type="collision">壁</button>
+                    <button class="line-type-btn" data-type="paddle">パドル</button>
+                    <button class="line-type-btn" data-type="missline">ミス</button>
+                    <button class="line-type-btn" data-type="decoration">装飾</button>
+                </div>
+                <div class="form-group">
+                    <label class="label">色</label>
+                    <input type="color" class="color-picker" id="line-color" value="#FFFF00">
+                </div>
+                <div class="form-group">
+                    <label class="label">太さ</label>
+                    <input type="number" class="input input--small" id="line-thickness" value="3" min="1" max="20">
+                </div>
+                <div class="form-group">
+                    <label class="label">不透明度</label>
+                    <input type="range" class="slider" id="line-opacity" value="1" min="0" max="1" step="0.1">
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas Container -->
+        <div class="canvas-container">
+            <div class="canvas-wrapper">
+                <canvas id="mainCanvas" width="1280" height="720"></canvas>
+                <canvas id="overlayCanvas" width="1280" height="720"></canvas>
+            </div>
+            <div class="canvas-info">
+                <span id="canvas-size-info">1280 x 720</span>
+                <span id="cursor-pos-info">X: 0, Y: 0</span>
+                <span id="hex-pos-info">Row: 0, Col: 0</span>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="right-panel">
+            <!-- Tabs -->
+            <div class="panel-tabs">
+                <button class="panel-tab active" data-tab="layers">レイヤー</button>
+                <button class="panel-tab" data-tab="stages">ステージ</button>
+            </div>
+
+            <!-- Layer Tab -->
+            <div class="panel-content" id="tab-layers">
+                <div class="layer-list" id="layer-list">
+                    <!-- Layers will be rendered here -->
+                </div>
+                <button class="add-layer-btn" id="btn-add-image">
+                    <i class="fas fa-image"></i>
+                    画像レイヤーを追加
+                </button>
+                <button class="add-layer-btn" id="btn-add-block-layer">
+                    <i class="fas fa-cubes"></i>
+                    ブロックレイヤーを追加
+                </button>
+            </div>
+
+            <!-- Stage Tab (hidden by default) -->
+            <div class="panel-content hidden" id="tab-stages">
+                <div class="stage-list" id="stage-list">
+                    <!-- Stages will be rendered here -->
+                </div>
+                <button class="add-layer-btn" id="btn-create-stage">
+                    <i class="fas fa-plus"></i>
+                    ステージを作成
+                </button>
+            </div>
+        </div>
+
+        <!-- Message Panel -->
+        <div class="message-panel">
+            <div class="message-header">
+                <span class="message-title">メッセージ</span>
+                <button class="message-clear-btn" id="btn-clear-messages">クリア</button>
+            </div>
+            <div class="message-list" id="message-list">
+                <div class="message info">
+                    <span class="message-icon">ℹ️</span>
+                    <span class="message-text">HexBreaker Editor へようこそ！</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Stage Dialog -->
+    <div class="modal-overlay hidden" id="new-stage-dialog">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">新規ステージ作成</span>
+                <button class="modal-close" id="new-stage-cancel">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="label">ステージ名</label>
+                    <input type="text" class="input" id="new-stage-name" placeholder="Stage 1" value="">
+                </div>
+
+                <div class="form-group">
+                    <label class="label">ベース画像（オプション）</label>
+                    <input type="file" class="input" id="new-stage-image" accept="image/png,image/jpeg,image/gif">
+                    <small style="color: var(--color-text-muted); display: block; margin-top: 4px;">
+                        画像サイズがキャンバスサイズとして使用されます
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label class="label">キャンバスサイズ（手動設定）</label>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="number" class="input" id="new-stage-width" value="1280" style="width: 80px;">
+                        <span>×</span>
+                        <input type="number" class="input" id="new-stage-height" value="720" style="width: 80px;">
+                        <span>px</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="label">グリッドサイズ（ブロック密度）</label>
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="radio" name="grid-size" value="small">
+                            <span>小 (10px) - 細かいブロック</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="radio" name="grid-size" value="medium" checked>
+                            <span>中 (30px) - 標準</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="radio" name="grid-size" value="large">
+                            <span>大 (50px) - 大きいブロック</span>
+                        </label>
+                    </div>
+                    <small style="color: var(--color-warning); display: block; margin-top: 8px;">
+                        ⚠ グリッドサイズは作成後に変更できません
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn--secondary" id="new-stage-cancel-btn">キャンセル</button>
+                <button class="btn btn--primary" id="new-stage-create-btn">作成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module">
+        import { editor } from './editor/core/Editor.js?v=2';
+        import { UIController } from './editor/ui/UIController.js?v=2';
+
+        // Initialize on DOM ready
+        document.addEventListener('DOMContentLoaded', () => {
+            const mainCanvas = document.getElementById('mainCanvas');
+            const overlayCanvas = document.getElementById('overlayCanvas');
+
+            // Initialize editor
+            editor.init(mainCanvas, overlayCanvas);
+
+            // Initialize UI controller
+            const ui = new UIController(editor);
+            ui.init();
+
+            // Tab switching
+            document.querySelectorAll('.panel-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    const tabId = tab.dataset.tab;
+                    document.querySelectorAll('.panel-content').forEach(content => {
+                        content.classList.toggle('hidden', content.id !== `tab-${tabId}`);
+                    });
+                });
+            });
+
+            // Canvas info updates
+            overlayCanvas.addEventListener('mousemove', async (e) => {
+                const rect = overlayCanvas.getBoundingClientRect();
+                const screenX = e.clientX - rect.left;
+                const screenY = e.clientY - rect.top;
+                const coords = editor.renderSystem.screenToCanvas(screenX, screenY);
+
+                document.getElementById('cursor-pos-info').textContent =
+                    `X: ${Math.round(coords.x)}, Y: ${Math.round(coords.y)}`;
+
+                const gridSize = editor.renderSystem.gridSize;
+                const { pixelToHex } = await import('./shared/HexMath.js');
+                const hex = pixelToHex(coords.x, coords.y, gridSize);
+                document.getElementById('hex-pos-info').textContent =
+                    `Row: ${hex.row}, Col: ${hex.col}`;
+            });
+
+            // Update canvas size info
+            editor.on('canvasSizeChanged', (size) => {
+                document.getElementById('canvas-size-info').textContent =
+                    `${size.width} x ${size.height}`;
+            });
+
+            // Menu items
+            document.getElementById('menu-new')?.addEventListener('click', () => editor.newProject());
+            document.getElementById('menu-toggle-grid')?.addEventListener('click', () => editor.toggleGrid());
+            document.getElementById('menu-toggle-lines')?.addEventListener('click', () => editor.toggleLines());
+            document.getElementById('menu-reset-view')?.addEventListener('click', () => editor.resetView());
+
+            console.log('HexBreaker Editor ready');
+        });
+    </script>
+</body>
+
+</html>

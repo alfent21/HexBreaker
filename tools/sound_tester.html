@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hex Breaker - Sound Effect Tester</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #fff;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #00d4ff;
+            text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .sound-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .sound-card h3 {
+            color: #ffd700;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .play-btn {
+            background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+            border: none;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+            margin-bottom: 15px;
+        }
+
+        .play-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+        }
+
+        .play-btn:active {
+            transform: scale(0.95);
+        }
+
+        .param-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
+
+        .param-row label {
+            min-width: 100px;
+            color: #aaa;
+        }
+
+        .param-row input[type="range"] {
+            flex: 1;
+            accent-color: #00d4ff;
+        }
+
+        .param-row .value {
+            min-width: 60px;
+            text-align: right;
+            color: #00d4ff;
+        }
+
+        .description {
+            font-size: 12px;
+            color: #888;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🎮 Hex Breaker - Sound Effect Tester</h1>
+
+    <div class="container">
+        <!-- Wall Hit (旧Block Hit - 音を交換) -->
+        <div class="sound-card">
+            <h3>🧱 Wall Hit</h3>
+            <button class="play-btn" onclick="playWallHit()">▶ Play</button>
+            <div class="param-row">
+                <label>Frequency:</label>
+                <input type="range" id="wallHit_freq" min="200" max="1000" value="412">
+                <span class="value" id="wallHit_freq_val">412 Hz</span>
+            </div>
+            <div class="param-row">
+                <label>Duration:</label>
+                <input type="range" id="wallHit_dur" min="30" max="200" value="60">
+                <span class="value" id="wallHit_dur_val">60 ms</span>
+            </div>
+            <div class="description">壁に当たった時の跳ね音</div>
+        </div>
+
+        <!-- Block Destroy -->
+        <div class="sound-card">
+            <h3>💥 Block Destroy</h3>
+            <button class="play-btn" onclick="playBlockDestroy()">▶ Play</button>
+            <div class="param-row">
+                <label>Start Freq:</label>
+                <input type="range" id="blockDestroy_startFreq" min="400" max="1200" value="800">
+                <span class="value" id="blockDestroy_startFreq_val">800 Hz</span>
+            </div>
+            <div class="param-row">
+                <label>End Freq:</label>
+                <input type="range" id="blockDestroy_endFreq" min="100" max="400" value="200">
+                <span class="value" id="blockDestroy_endFreq_val">200 Hz</span>
+            </div>
+            <div class="param-row">
+                <label>Duration:</label>
+                <input type="range" id="blockDestroy_dur" min="50" max="300" value="120">
+                <span class="value" id="blockDestroy_dur_val">120 ms</span>
+            </div>
+            <div class="description">ブロックが破壊された時の爆発的な下降音</div>
+        </div>
+
+        <!-- Paddle Hit (旧Wall - 音を交換) -->
+        <div class="sound-card">
+            <h3>🏓 Paddle Hit</h3>
+            <button class="play-btn" onclick="playPaddleHit()">▶ Play</button>
+            <div class="param-row">
+                <label>Frequency:</label>
+                <input type="range" id="paddleHit_freq" min="300" max="800" value="600">
+                <span class="value" id="paddleHit_freq_val">600 Hz</span>
+            </div>
+            <div class="param-row">
+                <label>Duration:</label>
+                <input type="range" id="paddleHit_dur" min="30" max="150" value="80">
+                <span class="value" id="paddleHit_dur_val">80 ms</span>
+            </div>
+            <div class="description">パドルでボールを打ち返した時の打撃音</div>
+        </div>
+
+        <!-- Gem Collect -->
+        <div class="sound-card">
+            <h3>💎 Gem Collect</h3>
+            <button class="play-btn" onclick="playGemCollect()">▶ Play</button>
+            <div class="param-row">
+                <label>Start Freq:</label>
+                <input type="range" id="gem_startFreq" min="400" max="1000" value="600">
+                <span class="value" id="gem_startFreq_val">600 Hz</span>
+            </div>
+            <div class="param-row">
+                <label>End Freq:</label>
+                <input type="range" id="gem_endFreq" min="800" max="2000" value="1200">
+                <span class="value" id="gem_endFreq_val">1200 Hz</span>
+            </div>
+            <div class="param-row">
+                <label>Duration:</label>
+                <input type="range" id="gem_dur" min="100" max="400" value="200">
+                <span class="value" id="gem_dur_val">200 ms</span>
+            </div>
+            <div class="description">ジェムを取得した時のキラキラ上昇音</div>
+        </div>
+
+        <!-- Weapon Activate -->
+        <div class="sound-card">
+            <h3>⚔️ Weapon Activate</h3>
+            <button class="play-btn" onclick="playWeaponActivate()">▶ Play</button>
+            <div class="param-row">
+                <label>Frequency:</label>
+                <input type="range" id="weapon_freq" min="200" max="600" value="507">
+                <span class="value" id="weapon_freq_val">507 Hz</span>
+            </div>
+            <div class="param-row">
+                <label>Duration:</label>
+                <input type="range" id="weapon_dur" min="100" max="500" value="382">
+                <span class="value" id="weapon_dur_val">382 ms</span>
+            </div>
+            <div class="description">ウエポンを発動した時のパワーアップ音</div>
+        </div>
+
+        <!-- Laser Fire -->
+        <div class="sound-card">
+            <h3>🔫 Laser Fire</h3>
+            <button class="play-btn" onclick="playLaserFire()">▶ Play</button>
+            <div class="param-row">
+                <label>Frequency:</label>
+                <input type="range" id="laser_freq" min="600" max="1500" value="1000">
+                <span class="value" id="laser_freq_val">1000 Hz</span>
+            </div>
+            <div class="param-row">
+                <label>Duration:</label>
+                <input type="range" id="laser_dur" min="200" max="800" value="400">
+                <span class="value" id="laser_dur_val">400 ms</span>
+            </div>
+            <div class="param-row">
+                <label>Wobble:</label>
+                <input type="range" id="laser_wobble" min="0" max="50" value="20">
+                <span class="value" id="laser_wobble_val">20 Hz</span>
+            </div>
+            <div class="description">「シュイーン」という長めのビーム音</div>
+        </div>
+
+        <!-- Boss Hit -->
+        <div class="sound-card">
+            <h3>🕷️ Boss Hit</h3>
+            <button class="play-btn" onclick="playBossHit()">▶ Play</button>
+            <div class="param-row">
+                <label>Frequency:</label>
+                <input type="range" id="bossHit_freq" min="100" max="400" value="200">
+                <span class="value" id="bossHit_freq_val">200 Hz</span>
+            </div>
+            <div class="param-row">
+                <label>Duration:</label>
+                <input type="range" id="bossHit_dur" min="100" max="400" value="200">
+                <span class="value" id="bossHit_dur_val">200 ms</span>
+            </div>
+            <div class="description">ボスにダメージを与えた時の重い打撃音</div>
+        </div>
+
+        <!-- Stage Clear -->
+        <div class="sound-card">
+            <h3>🎉 Stage Clear</h3>
+            <button class="play-btn" onclick="playStageClear()">▶ Play</button>
+            <div class="param-row">
+                <label>Base Freq:</label>
+                <input type="range" id="clear_freq" min="300" max="600" value="400">
+                <span class="value" id="clear_freq_val">400 Hz</span>
+            </div>
+            <div class="description">ステージクリア時のファンファーレ</div>
+        </div>
+
+        <!-- Game Over -->
+        <div class="sound-card">
+            <h3>💀 Game Over</h3>
+            <button class="play-btn" onclick="playGameOver()">▶ Play</button>
+            <div class="param-row">
+                <label>Start Freq:</label>
+                <input type="range" id="gameover_freq" min="200" max="500" value="400">
+                <span class="value" id="gameover_freq_val">400 Hz</span>
+            </div>
+            <div class="description">ゲームオーバー時の残念音</div>
+        </div>
+
+        <!-- Block Hit (ブロックにヒット - 新規追加) -->
+        <div class="sound-card">
+            <h3>🎯 Block Hit</h3>
+            <button class="play-btn" onclick="playBlockHit()">▶ Play</button>
+            <div class="param-row">
+                <label>Frequency:</label>
+                <input type="range" id="blockHit_freq" min="300" max="800" value="500">
+                <span class="value" id="blockHit_freq_val">500 Hz</span>
+            </div>
+            <div class="param-row">
+                <label>Duration:</label>
+                <input type="range" id="blockHit_dur" min="30" max="150" value="50">
+                <span class="value" id="blockHit_dur_val">50 ms</span>
+            </div>
+            <div class="description">ブロックにボールが当たった時（破壊なし）</div>
+        </div>
+    </div>
+
+    <script>
+        let audioCtx = null;
+
+        function getAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            return audioCtx;
+        }
+
+        // Update all value displays
+        document.querySelectorAll('input[type="range"]').forEach(input => {
+            input.addEventListener('input', () => {
+                const valSpan = document.getElementById(input.id + '_val');
+                if (valSpan) {
+                    const unit = input.id.includes('freq') ? ' Hz' : ' ms';
+                    valSpan.textContent = input.value + unit;
+                }
+            });
+        });
+
+        function getVal(id) {
+            return parseFloat(document.getElementById(id).value);
+        }
+
+        // Wall Hit - bouncy (旧Paddleの音)
+        function playWallHit() {
+            const ctx = getAudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            const freq = getVal('wallHit_freq');
+            const dur = getVal('wallHit_dur') / 1000;
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(freq * 0.8, ctx.currentTime + dur);
+            gain.gain.setValueAtTime(0.25, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + dur);
+        }
+
+        // Block Destroy - descending burst
+        function playBlockDestroy() {
+            const ctx = getAudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            const startFreq = getVal('blockDestroy_startFreq');
+            const endFreq = getVal('blockDestroy_endFreq');
+            const dur = getVal('blockDestroy_dur') / 1000;
+
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + dur);
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + dur);
+        }
+
+        // Paddle Hit - short beep (旧Block Hitの音)
+        function playPaddleHit() {
+            const ctx = getAudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            const freq = getVal('paddleHit_freq');
+            const dur = getVal('paddleHit_dur') / 1000;
+
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime);
+            gain.gain.setValueAtTime(0.2, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + dur);
+        }
+
+        // Block Hit - lighter beep for non-destroying hit
+        function playBlockHit() {
+            const ctx = getAudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            const freq = getVal('blockHit_freq');
+            const dur = getVal('blockHit_dur') / 1000;
+
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime);
+            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + dur);
+        }
+
+        // Gem Collect - ascending sparkle
+        function playGemCollect() {
+            const ctx = getAudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            const startFreq = getVal('gem_startFreq');
+            const endFreq = getVal('gem_endFreq');
+            const dur = getVal('gem_dur') / 1000;
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(startFreq, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + dur);
+            gain.gain.setValueAtTime(0.2, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + dur);
+        }
+
+        // Weapon Activate - power up
+        function playWeaponActivate() {
+            const ctx = getAudioContext();
+            const dur = getVal('weapon_dur') / 1000;
+            const baseFreq = getVal('weapon_freq');
+
+            for (let i = 0; i < 3; i++) {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                const startTime = ctx.currentTime + i * (dur / 4);
+                const freq = baseFreq * (1 + i * 0.25);
+
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(freq, startTime);
+                gain.gain.setValueAtTime(0, startTime);
+                gain.gain.linearRampToValueAtTime(0.2, startTime + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.01, startTime + dur / 3);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(startTime);
+                osc.stop(startTime + dur / 3);
+            }
+        }
+
+        // Laser Fire - 金属的なシュイーン音
+        function playLaserFire() {
+            const ctx = getAudioContext();
+
+            const freq = getVal('laser_freq');
+            const dur = getVal('laser_dur') / 1000;
+            const wobbleAmount = getVal('laser_wobble');
+
+            // メインオシレーター（ノコギリ波 = 金属的）
+            const osc1 = ctx.createOscillator();
+            const osc2 = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            // LFO for fast vibrato (機械的なビビビ感)
+            const lfo = ctx.createOscillator();
+            const lfoGain = ctx.createGain();
+
+            lfo.type = 'square';
+            lfo.frequency.setValueAtTime(30 + wobbleAmount, ctx.currentTime); // 高速ビブラート
+            lfoGain.gain.setValueAtTime(wobbleAmount * 2, ctx.currentTime);
+
+            lfo.connect(lfoGain);
+            lfoGain.connect(osc1.frequency);
+            lfoGain.connect(osc2.frequency);
+
+            // 2つのオシレーターでデチューン（厚みを出す）
+            osc1.type = 'sawtooth';
+            osc2.type = 'sawtooth';
+            osc1.frequency.setValueAtTime(freq, ctx.currentTime);
+            osc2.frequency.setValueAtTime(freq * 1.01, ctx.currentTime); // 微妙にずらす
+
+            // 周波数を急上昇→維持→急下降（シュイーン）
+            const peakTime = ctx.currentTime + dur * 0.15;
+            const holdTime = ctx.currentTime + dur * 0.7;
+
+            osc1.frequency.linearRampToValueAtTime(freq * 1.5, peakTime);
+            osc1.frequency.setValueAtTime(freq * 1.5, holdTime);
+            osc1.frequency.exponentialRampToValueAtTime(freq * 0.5, ctx.currentTime + dur);
+
+            osc2.frequency.linearRampToValueAtTime(freq * 1.51, peakTime);
+            osc2.frequency.setValueAtTime(freq * 1.51, holdTime);
+            osc2.frequency.exponentialRampToValueAtTime(freq * 0.51, ctx.currentTime + dur);
+
+            // シャープなアタック、長いリリース
+            gain.gain.setValueAtTime(0, ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.25, ctx.currentTime + 0.01); // 瞬時にアタック
+            gain.gain.setValueAtTime(0.2, peakTime);
+            gain.gain.setValueAtTime(0.15, holdTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur);
+
+            osc1.connect(gain);
+            osc2.connect(gain);
+            gain.connect(ctx.destination);
+
+            lfo.start();
+            osc1.start();
+            osc2.start();
+            lfo.stop(ctx.currentTime + dur);
+            osc1.stop(ctx.currentTime + dur);
+            osc2.stop(ctx.currentTime + dur);
+        }
+
+        // Boss Hit - heavy thump
+        function playBossHit() {
+            const ctx = getAudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            const freq = getVal('bossHit_freq');
+            const dur = getVal('bossHit_dur') / 1000;
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(freq * 0.5, ctx.currentTime + dur);
+            gain.gain.setValueAtTime(0.4, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + dur);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + dur);
+        }
+
+        // Stage Clear - fanfare
+        function playStageClear() {
+            const ctx = getAudioContext();
+            const baseFreq = getVal('clear_freq');
+            const notes = [1, 1.25, 1.5, 2];
+
+            notes.forEach((mult, i) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                const startTime = ctx.currentTime + i * 0.15;
+
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(baseFreq * mult, startTime);
+                gain.gain.setValueAtTime(0, startTime);
+                gain.gain.linearRampToValueAtTime(0.15, startTime + 0.02);
+                gain.gain.setValueAtTime(0.15, startTime + 0.12);
+                gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.3);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(startTime);
+                osc.stop(startTime + 0.3);
+            });
+        }
+
+        // Game Over - descending sad
+        function playGameOver() {
+            const ctx = getAudioContext();
+            const baseFreq = getVal('gameover_freq');
+            const notes = [1, 0.9, 0.8, 0.6];
+
+            notes.forEach((mult, i) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                const startTime = ctx.currentTime + i * 0.3;
+
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(baseFreq * mult, startTime);
+                gain.gain.setValueAtTime(0, startTime);
+                gain.gain.linearRampToValueAtTime(0.2, startTime + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.4);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(startTime);
+                osc.stop(startTime + 0.4);
+            });
+        }
+    </script>
+</body>
+
+</html>

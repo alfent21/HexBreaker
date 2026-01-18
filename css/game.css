@@ -1,0 +1,330 @@
+/**
+ * game.css - HexBreaker Game Styles
+ * Game-specific UI and HUD
+ */
+
+@import url('./ui.css');
+
+/* Game container */
+.game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: var(--color-bg-primary);
+}
+
+/* Game canvas */
+.game-canvas-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#gameCanvas {
+    display: block;
+    box-shadow: var(--shadow-lg);
+}
+
+/* HUD Overlay */
+.game-hud {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    pointer-events: none;
+}
+
+.hud-left,
+.hud-center,
+.hud-right {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+/* Gem counter */
+.gem-counter {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: var(--radius-md);
+    font-weight: 600;
+}
+
+.gem-icon {
+    font-size: 18px;
+}
+
+.gem-count {
+    font-size: var(--font-size-lg);
+    color: #ffd700;
+}
+
+/* Score display */
+.score-display {
+    padding: var(--spacing-xs) var(--spacing-md);
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: var(--radius-md);
+    font-weight: 600;
+}
+
+.score-label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-right: var(--spacing-xs);
+}
+
+.score-value {
+    font-size: var(--font-size-lg);
+    font-family: var(--font-mono);
+}
+
+/* Lives display */
+.lives-display {
+    display: flex;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: var(--radius-md);
+}
+
+.life-icon {
+    font-size: 18px;
+    color: #f44336;
+}
+
+.life-icon.empty {
+    opacity: 0.3;
+}
+
+/* Weapon panel - below canvas */
+.weapon-panel {
+    display: flex;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: var(--radius-lg);
+}
+
+.weapon-slot {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.weapon-slot:hover {
+    border-color: var(--color-accent);
+}
+
+.weapon-slot.can-afford {
+    border-color: #4caf50;
+}
+
+.weapon-slot.active {
+    border-color: #ffd700;
+    background: rgba(255, 215, 0, 0.2);
+}
+
+.weapon-slot.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.weapon-icon {
+    font-size: 16px;
+}
+
+.weapon-name {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.weapon-cost {
+    display: flex;
+    gap: 2px;
+    margin-left: auto;
+}
+
+.weapon-cost-pip {
+    width: 5px;
+    height: 5px;
+    background: #ffd700;
+    border-radius: 50%;
+}
+
+.weapon-cost-pip.empty {
+    background: var(--color-border);
+}
+
+.weapon-key {
+    font-size: 10px;
+    color: var(--color-text-muted);
+    margin-left: var(--spacing-xs);
+}
+
+/* Weapon timer bar */
+.weapon-timer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--color-border);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    overflow: hidden;
+}
+
+.weapon-timer-fill {
+    height: 100%;
+    background: #ffd700;
+    transition: width 0.1s linear;
+}
+
+/* Boss HP bar */
+.boss-hp-bar {
+    position: absolute;
+    width: 200px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: var(--radius-md);
+}
+
+.boss-hp-label {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: #f44336;
+    text-align: center;
+    margin-bottom: var(--spacing-xs);
+}
+
+.boss-hp-track {
+    height: 8px;
+    background: var(--color-border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.boss-hp-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #f44336, #ff5722);
+    transition: width 0.3s ease;
+}
+
+/* Combo display */
+.combo-display {
+    position: absolute;
+    top: 50%;
+    right: var(--spacing-xl);
+    transform: translateY(-50%);
+    text-align: right;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.combo-display.visible {
+    opacity: 1;
+}
+
+.combo-count {
+    font-size: 48px;
+    font-weight: 700;
+    color: #ff9800;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.combo-label {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: #ffb74d;
+}
+
+/* Tips display - hidden during play */
+.tips-display {
+    display: none;
+}
+
+/* Game over overlay */
+.game-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.8);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.game-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.game-overlay-title {
+    font-size: 48px;
+    font-weight: 700;
+    margin-bottom: var(--spacing-lg);
+}
+
+.game-overlay-title.game-over {
+    color: #f44336;
+}
+
+.game-overlay-title.stage-clear {
+    color: #4caf50;
+}
+
+.game-overlay-score {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--spacing-xl);
+}
+
+.game-overlay-buttons {
+    display: flex;
+    gap: var(--spacing-md);
+}
+
+/* Pause menu */
+.pause-menu {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-lg);
+}
+
+.pause-title {
+    font-size: 36px;
+    font-weight: 600;
+}
+
+.pause-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    min-width: 200px;
+}
