@@ -259,8 +259,11 @@ export class Game {
             // Move ball
             ball.update(dt, speedMultiplier);
 
-            // Wall collisions
+            // Wall collisions (canvas boundaries)
             this.collision.checkWallCollision(ball, this.canvasWidth, this.canvasHeight);
+
+            // Line collisions (collision lines from editor)
+            this._checkLineCollision(ball, i);
 
             // Paddle collision
             const paddleHit = this.paddle.checkCollision(ball);
@@ -357,6 +360,64 @@ export class Game {
             this._updateUI();
             break; // Only process first collision per frame
         }
+    }
+
+    /**
+     * Check collision with collision lines and apply Block Guide
+     * @private
+     * @param {Ball} ball - The ball to check
+     * @param {number} ballIndex - Index in balls array (0 = primary ball)
+     */
+    _checkLineCollision(ball, ballIndex) {
+        const lines = this.state.stageData?.lines;
+        if (!lines || lines.length === 0) return;
+
+        const lineHit = this.collision.checkLineCollision(ball, lines);
+        if (!lineHit.hit) return;
+
+        // Reflect ball off the line
+        ball.reflect(lineHit.normal.x, lineHit.normal.y);
+
+        // Push ball away from line to prevent multiple collisions
+        ball.x += lineHit.normal.x * 2;
+        ball.y += lineHit.normal.y * 2;
+
+        // Apply Block Guide (primary ball only)
+        if (ballIndex === 0) {
+            const config = this._resolveBlockGuideConfig(lineHit.line);
+            if (config?.enabled) {
+                const reflectionAngle = Math.atan2(ball.dy, ball.dx);
+                this.collision.applyBlockGuide(
+                    ball,
+                    reflectionAngle,
+                    this.state.blocks,
+                    config
+                );
+            }
+        }
+    }
+
+    /**
+     * Resolve Block Guide configuration from line and stage settings
+     * @private
+     * @param {Object} line - The collision line
+     * @returns {{enabled: boolean, probability: number, angleLimit: number}|null}
+     */
+    _resolveBlockGuideConfig(line) {
+        const stageMeta = this.state.stageData?.meta?.blockGuide;
+        const lineConfig = line?.blockGuide;
+
+        // Check if block guide is enabled at any level
+        const stageEnabled = stageMeta?.enabled !== false;
+        const lineEnabled = lineConfig?.enabled !== false;
+
+        if (!stageEnabled && !lineEnabled) return null;
+
+        return {
+            enabled: lineConfig?.enabled ?? stageMeta?.enabled ?? true,
+            probability: lineConfig?.probability ?? stageMeta?.probability ?? 0.5,
+            angleLimit: lineConfig?.angleLimit ?? stageMeta?.angleLimit ?? 30
+        };
     }
 
     /**
