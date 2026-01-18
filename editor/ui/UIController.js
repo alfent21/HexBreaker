@@ -90,6 +90,27 @@ export class UIController {
             addImageBtn: document.getElementById('btn-add-image'),
             addBlockLayerBtn: document.getElementById('btn-add-block-layer'),
 
+            // Blockify dialog
+            blockifyDialog: document.getElementById('blockify-dialog'),
+            blockifySourceSelect: document.getElementById('blockify-source'),
+            blockifyGridSize: document.getElementById('blockify-grid-size'),
+            blockifyAlphaThreshold: document.getElementById('blockify-alpha-threshold'),
+            blockifyAlphaValue: document.getElementById('blockify-alpha-value'),
+            blockifyCoverageThreshold: document.getElementById('blockify-coverage-threshold'),
+            blockifyCoverageValue: document.getElementById('blockify-coverage-value'),
+            blockifyDurability: document.getElementById('blockify-durability'),
+            blockifyUseImageColor: document.getElementById('blockify-use-image-color'),
+            blockifyDefaultColor: document.getElementById('blockify-default-color'),
+            blockifyTargetSelect: document.getElementById('blockify-target'),
+            blockifyMergeBlocks: document.getElementById('blockify-merge-blocks'),
+            blockifyPreviewCount: document.getElementById('blockify-preview-count'),
+            blockifyCancelBtn: document.getElementById('blockify-cancel-btn'),
+            blockifyCreateBtn: document.getElementById('blockify-create-btn'),
+            blockifyCloseBtn: document.getElementById('blockify-close-btn'),
+
+            // Context menu
+            contextMenu: document.getElementById('layer-context-menu'),
+
             // Message panel
             messageList: document.getElementById('message-list'),
             clearMessagesBtn: document.getElementById('btn-clear-messages')
@@ -243,6 +264,12 @@ export class UIController {
 
         // Message panel
         this.elements.clearMessagesBtn?.addEventListener('click', () => this._clearMessages());
+
+        // Blockify dialog
+        this._bindBlockifyDialogEvents();
+
+        // Context menu
+        this._bindContextMenuEvents();
     }
 
     /**
@@ -634,6 +661,389 @@ export class UIController {
 
         if (stage) {
             this._addMessage('info', `ステージ「${stage.name}」を選択しました`);
+        }
+    }
+
+    // =========================================
+    // Blockify Dialog Methods
+    // =========================================
+
+    /**
+     * Bind blockify dialog events
+     * @private
+     */
+    _bindBlockifyDialogEvents() {
+        // Close buttons
+        this.elements.blockifyCloseBtn?.addEventListener('click', () => this._hideBlockifyDialog());
+        this.elements.blockifyCancelBtn?.addEventListener('click', () => this._hideBlockifyDialog());
+
+        // Create button
+        this.elements.blockifyCreateBtn?.addEventListener('click', () => this._executeBlockify());
+
+        // Alpha threshold slider
+        this.elements.blockifyAlphaThreshold?.addEventListener('input', (e) => {
+            if (this.elements.blockifyAlphaValue) {
+                this.elements.blockifyAlphaValue.textContent = e.target.value;
+            }
+            this._updateBlockifyPreview();
+        });
+
+        // Coverage threshold slider
+        this.elements.blockifyCoverageThreshold?.addEventListener('input', (e) => {
+            if (this.elements.blockifyCoverageValue) {
+                this.elements.blockifyCoverageValue.textContent = `${Math.round(e.target.value * 100)}%`;
+            }
+            this._updateBlockifyPreview();
+        });
+
+        // Other options that affect preview
+        this.elements.blockifySourceSelect?.addEventListener('change', () => this._updateBlockifyPreview());
+        this.elements.blockifyGridSize?.addEventListener('change', () => this._updateBlockifyPreview());
+
+        // Toggle default color picker visibility
+        this.elements.blockifyUseImageColor?.addEventListener('change', (e) => {
+            const colorPicker = this.elements.blockifyDefaultColor?.parentElement;
+            if (colorPicker) {
+                colorPicker.style.display = e.target.checked ? 'none' : 'block';
+            }
+        });
+    }
+
+    /**
+     * Show blockify dialog
+     * @param {number} [imageLayerId] - Pre-selected image layer
+     */
+    showBlockifyDialog(imageLayerId = null) {
+        const dialog = this.elements.blockifyDialog;
+        if (!dialog) return;
+
+        // Populate source image selector
+        this._populateBlockifySourceSelect(imageLayerId);
+
+        // Populate target layer selector
+        this._populateBlockifyTargetSelect();
+
+        // Reset form values
+        if (this.elements.blockifyGridSize) {
+            this.elements.blockifyGridSize.value = 'medium';
+        }
+        if (this.elements.blockifyAlphaThreshold) {
+            this.elements.blockifyAlphaThreshold.value = 128;
+            this.elements.blockifyAlphaValue.textContent = '128';
+        }
+        if (this.elements.blockifyCoverageThreshold) {
+            this.elements.blockifyCoverageThreshold.value = 0.3;
+            this.elements.blockifyCoverageValue.textContent = '30%';
+        }
+        if (this.elements.blockifyDurability) {
+            this.elements.blockifyDurability.value = 1;
+        }
+        if (this.elements.blockifyUseImageColor) {
+            this.elements.blockifyUseImageColor.checked = true;
+        }
+        if (this.elements.blockifyMergeBlocks) {
+            this.elements.blockifyMergeBlocks.checked = false;
+        }
+
+        // Update preview
+        this._updateBlockifyPreview();
+
+        dialog.classList.remove('hidden');
+    }
+
+    /**
+     * Hide blockify dialog
+     * @private
+     */
+    _hideBlockifyDialog() {
+        this.elements.blockifyDialog?.classList.add('hidden');
+    }
+
+    /**
+     * Populate source image selector
+     * @private
+     */
+    _populateBlockifySourceSelect(preselectedId = null) {
+        const select = this.elements.blockifySourceSelect;
+        if (!select) return;
+
+        const imageLayers = this.editor.layerManager.getImageLayers();
+
+        select.innerHTML = imageLayers.map(layer =>
+            `<option value="${layer.id}" ${layer.id === preselectedId ? 'selected' : ''}>
+                ${layer.name}
+            </option>`
+        ).join('');
+
+        // If no preselection, select first
+        if (!preselectedId && imageLayers.length > 0) {
+            select.value = imageLayers[0].id;
+        }
+    }
+
+    /**
+     * Populate target layer selector
+     * @private
+     */
+    _populateBlockifyTargetSelect() {
+        const select = this.elements.blockifyTargetSelect;
+        if (!select) return;
+
+        const blockLayers = this.editor.layerManager.getBlockLayers();
+
+        select.innerHTML = '<option value="">新規ブロックレイヤー</option>' +
+            blockLayers.map(layer =>
+                `<option value="${layer.id}">${layer.name}</option>`
+            ).join('');
+    }
+
+    /**
+     * Update blockify preview count
+     * @private
+     */
+    _updateBlockifyPreview() {
+        const countEl = this.elements.blockifyPreviewCount;
+        if (!countEl) return;
+
+        const sourceId = parseInt(this.elements.blockifySourceSelect?.value);
+        if (!sourceId) {
+            countEl.textContent = '0';
+            return;
+        }
+
+        const options = this._getBlockifyOptions();
+        const preview = this.editor.layerManager.getBlockifyPreview(sourceId, options);
+
+        countEl.textContent = preview.filledHexes.toString();
+    }
+
+    /**
+     * Get blockify options from form
+     * @private
+     * @returns {Object}
+     */
+    _getBlockifyOptions() {
+        return {
+            gridSize: this.elements.blockifyGridSize?.value || 'medium',
+            alphaThreshold: parseInt(this.elements.blockifyAlphaThreshold?.value) || 128,
+            coverageThreshold: parseFloat(this.elements.blockifyCoverageThreshold?.value) || 0.3,
+            defaultDurability: parseInt(this.elements.blockifyDurability?.value) || 1,
+            defaultColor: this.elements.blockifyDefaultColor?.value || '#64B5F6',
+            useImageColor: this.elements.blockifyUseImageColor?.checked ?? true
+        };
+    }
+
+    /**
+     * Execute blockify operation
+     * @private
+     */
+    _executeBlockify() {
+        const sourceId = parseInt(this.elements.blockifySourceSelect?.value);
+        if (!sourceId) {
+            this._addMessage('error', 'ソース画像を選択してください');
+            return;
+        }
+
+        const options = this._getBlockifyOptions();
+
+        // Add target layer options
+        const targetId = this.elements.blockifyTargetSelect?.value;
+        if (targetId) {
+            options.targetLayerId = parseInt(targetId);
+            options.mergeBlocks = this.elements.blockifyMergeBlocks?.checked ?? false;
+        }
+
+        try {
+            const blockLayer = this.editor.layerManager.blockifyLayer(sourceId, options);
+            this._addMessage('info', `ブロック化完了: ${blockLayer.blocks.size} ブロック生成`);
+            this._hideBlockifyDialog();
+            this._updateLayerList();
+            this.editor.render();
+        } catch (error) {
+            this._addMessage('error', `ブロック化に失敗しました: ${error.message}`);
+        }
+    }
+
+    // =========================================
+    // Context Menu Methods
+    // =========================================
+
+    /**
+     * Bind context menu events
+     * @private
+     */
+    _bindContextMenuEvents() {
+        const contextMenu = this.elements.contextMenu;
+        if (!contextMenu) return;
+
+        // Close on click outside
+        document.addEventListener('click', (e) => {
+            if (!contextMenu.contains(e.target)) {
+                this._hideContextMenu();
+            }
+        });
+
+        // Close on escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this._hideContextMenu();
+            }
+        });
+
+        // Right-click on layer list
+        this.elements.layerList?.addEventListener('contextmenu', (e) => {
+            const layerItem = e.target.closest('.layer-item');
+            if (layerItem) {
+                e.preventDefault();
+                const layerId = parseInt(layerItem.dataset.layerId);
+                this._showContextMenu(e.clientX, e.clientY, layerId);
+            }
+        });
+    }
+
+    /**
+     * Show context menu for a layer
+     * @private
+     */
+    _showContextMenu(x, y, layerId) {
+        const menu = this.elements.contextMenu;
+        if (!menu) return;
+
+        const layer = this.editor.layerManager.getLayer(layerId);
+        if (!layer) return;
+
+        this._currentContextLayerId = layerId;
+
+        // Build menu items based on layer type
+        const items = [];
+
+        // Common items
+        items.push({ label: '名前を変更', action: 'rename', icon: '✏️' });
+        items.push({ label: '複製', action: 'duplicate', icon: '📋' });
+        items.push({ type: 'separator' });
+
+        // Image layer specific
+        if (layer.type === 'image') {
+            items.push({ label: 'ブロック化...', action: 'blockify', icon: '🧱' });
+            items.push({ type: 'separator' });
+        }
+
+        // Block layer specific
+        if (layer.type === 'block') {
+            items.push({ label: 'ブロックをクリア', action: 'clear-blocks', icon: '🗑️' });
+            items.push({ type: 'separator' });
+        }
+
+        items.push({ label: '上へ移動', action: 'move-up', icon: '⬆️' });
+        items.push({ label: '下へ移動', action: 'move-down', icon: '⬇️' });
+        items.push({ type: 'separator' });
+        items.push({ label: '削除', action: 'delete', icon: '🗑️', danger: true });
+
+        // Render menu
+        menu.innerHTML = items.map(item => {
+            if (item.type === 'separator') {
+                return '<div class="context-menu-separator"></div>';
+            }
+            return `
+                <div class="context-menu-item ${item.danger ? 'danger' : ''}" data-action="${item.action}">
+                    <span class="context-menu-icon">${item.icon}</span>
+                    <span class="context-menu-label">${item.label}</span>
+                </div>
+            `;
+        }).join('');
+
+        // Bind click handlers
+        menu.querySelectorAll('.context-menu-item').forEach(item => {
+            item.addEventListener('click', () => {
+                this._executeContextMenuAction(item.dataset.action);
+                this._hideContextMenu();
+            });
+        });
+
+        // Position menu
+        menu.style.left = `${x}px`;
+        menu.style.top = `${y}px`;
+        menu.classList.remove('hidden');
+
+        // Adjust if off-screen
+        const rect = menu.getBoundingClientRect();
+        if (rect.right > window.innerWidth) {
+            menu.style.left = `${window.innerWidth - rect.width - 10}px`;
+        }
+        if (rect.bottom > window.innerHeight) {
+            menu.style.top = `${window.innerHeight - rect.height - 10}px`;
+        }
+    }
+
+    /**
+     * Hide context menu
+     * @private
+     */
+    _hideContextMenu() {
+        this.elements.contextMenu?.classList.add('hidden');
+        this._currentContextLayerId = null;
+    }
+
+    /**
+     * Execute context menu action
+     * @private
+     */
+    _executeContextMenuAction(action) {
+        const layerId = this._currentContextLayerId;
+        if (!layerId) return;
+
+        const layer = this.editor.layerManager.getLayer(layerId);
+        if (!layer) return;
+
+        switch (action) {
+            case 'rename': {
+                const newName = prompt('新しい名前:', layer.name);
+                if (newName && newName !== layer.name) {
+                    this.editor.layerManager.renameLayer(layerId, newName);
+                }
+                break;
+            }
+
+            case 'duplicate': {
+                try {
+                    const newLayer = this.editor.layerManager.duplicateLayer(layerId);
+                    this._addMessage('info', `レイヤー「${newLayer.name}」を作成しました`);
+                } catch (error) {
+                    this._addMessage('error', `複製に失敗しました: ${error.message}`);
+                }
+                break;
+            }
+
+            case 'blockify': {
+                this.showBlockifyDialog(layerId);
+                break;
+            }
+
+            case 'clear-blocks': {
+                if (layer.type === 'block' && confirm('すべてのブロックを削除しますか？')) {
+                    layer.blocks.clear();
+                    this.editor.render();
+                    this._addMessage('info', 'ブロックをクリアしました');
+                }
+                break;
+            }
+
+            case 'move-up': {
+                this.editor.layerManager.moveUp(layerId);
+                break;
+            }
+
+            case 'move-down': {
+                this.editor.layerManager.moveDown(layerId);
+                break;
+            }
+
+            case 'delete': {
+                if (confirm(`レイヤー「${layer.name}」を削除しますか？`)) {
+                    this.editor.layerManager.removeLayer(layerId);
+                }
+                break;
+            }
         }
     }
 }

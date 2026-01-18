@@ -348,6 +348,107 @@
         </div>
     </div>
 
+    <!-- Blockify Dialog -->
+    <div class="modal-overlay hidden" id="blockify-dialog">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">ブロック化</span>
+                <button class="modal-close" id="blockify-close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="label">ソース画像レイヤー</label>
+                    <select class="select" id="blockify-source" style="width: 100%;">
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="label">グリッドサイズ</label>
+                    <select class="select" id="blockify-grid-size" style="width: 100%;">
+                        <option value="small">小 (10px)</option>
+                        <option value="medium" selected>中 (30px)</option>
+                        <option value="large">大 (50px)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="label">アルファしきい値: <span id="blockify-alpha-value">128</span></label>
+                    <input type="range" class="slider" id="blockify-alpha-threshold"
+                        min="1" max="255" value="128" style="width: 100%;">
+                    <small style="color: var(--color-text-muted);">
+                        この値以上のアルファを持つピクセルをブロック対象とみなします
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label class="label">カバレッジしきい値: <span id="blockify-coverage-value">30%</span></label>
+                    <input type="range" class="slider" id="blockify-coverage-threshold"
+                        min="0.1" max="1" step="0.05" value="0.3" style="width: 100%;">
+                    <small style="color: var(--color-text-muted);">
+                        ヘックス内のこの割合以上がアルファしきい値を超えたらブロック配置
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label class="label">デフォルト耐久値</label>
+                    <select class="select" id="blockify-durability" style="width: 100%;">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="blockify-use-image-color" checked>
+                        <span>画像から色を抽出</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label class="label">デフォルト色</label>
+                    <input type="color" class="color-picker" id="blockify-default-color" value="#64B5F6">
+                </div>
+
+                <hr style="border-color: var(--color-border); margin: 16px 0;">
+
+                <div class="form-group">
+                    <label class="label">出力先</label>
+                    <select class="select" id="blockify-target" style="width: 100%;">
+                        <option value="">新規ブロックレイヤー</option>
+                        <!-- Existing block layers populated dynamically -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="blockify-merge-blocks">
+                        <span>既存ブロックとマージ（上書きしない）</span>
+                    </label>
+                </div>
+
+                <div class="form-group" style="background: var(--color-bg-secondary); padding: 12px; border-radius: 4px;">
+                    <label class="label">プレビュー</label>
+                    <p style="margin: 8px 0 0 0;">
+                        生成ブロック数: <strong id="blockify-preview-count">0</strong>
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn--secondary" id="blockify-cancel-btn">キャンセル</button>
+                <button class="btn btn--primary" id="blockify-create-btn">ブロック化実行</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Layer Context Menu -->
+    <div class="context-menu hidden" id="layer-context-menu">
+        <!-- Items populated dynamically -->
+    </div>
+
     <!-- Scripts -->
     <script type="module">
         import { editor } from './editor/core/Editor.js?v=2';

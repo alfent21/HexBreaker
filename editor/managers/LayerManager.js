@@ -6,7 +6,8 @@
  * Layers are rendered in array order (later = front).
  */
 
-import { getHexKey, parseHexKey } from '../../shared/HexMath.js';
+import { getHexKey, parseHexKey, GRID_SIZES } from '../../shared/HexMath.js';
+import { ImageAnalyzer } from '../utils/ImageAnalyzer.js';
 
 /**
  * @typedef {Object} ImageLayer
@@ -606,5 +607,162 @@ export class LayerManager {
         }
         // If active layer is not a block layer, return first visible block layer
         return this.layers.find(l => l.type === 'block' && l.visible) || null;
+    }
+
+    /**
+     * Blockify - Generate blocks from an image layer
+     * @param {number} imageLayerId - Source image layer ID
+     * @param {Object} options - Blockify options
+     * @param {string} [options.gridSize='medium'] - Grid size
+     * @param {number} [options.alphaThreshold=128] - Alpha threshold (0-255)
+     * @param {number} [options.coverageThreshold=0.3] - Minimum hex coverage (0-1)
+     * @param {number} [options.defaultDurability=1] - Default block durability
+     * @param {string} [options.defaultColor='#64B5F6'] - Default block color
+     * @param {boolean} [options.useImageColor=true] - Extract color from image
+     * @param {string} [options.targetLayerId] - Existing block layer ID (optional)
+     * @param {boolean} [options.mergeBlocks=false] - Merge with existing blocks
+     * @returns {BlockLayer} The created or updated block layer
+     */
+    blockifyLayer(imageLayerId, options = {}) {
+        const imageLayer = this.getLayer(imageLayerId);
+        if (!imageLayer || imageLayer.type !== 'image') {
+            throw new Error('有効な画像レイヤーを指定してください');
+        }
+
+        if (!imageLayer.image) {
+            throw new Error('画像が読み込まれていません');
+        }
+
+        // Analyze image to generate blocks
+        const result = ImageAnalyzer.analyzeAlpha(imageLayer.image, options);
+
+        let blockLayer;
+
+        if (options.targetLayerId) {
+            // Use existing block layer
+            blockLayer = this.getLayer(options.targetLayerId);
+            if (!blockLayer || blockLayer.type !== 'block') {
+                throw new Error('有効なブロックレイヤーを指定してください');
+            }
+
+            if (options.mergeBlocks) {
+                // Merge with existing blocks
+                for (const [key, block] of result.blocks) {
+                    if (!blockLayer.blocks.has(key)) {
+                        blockLayer.blocks.set(key, block);
+                    }
+                }
+            } else {
+                // Replace existing blocks
+                blockLayer.blocks = result.blocks;
+            }
+
+            // Link to source image
+            blockLayer.sourceLayerId = imageLayerId;
+        } else {
+            // Create new block layer
+            const layerName = `${imageLayer.name}_blocks`;
+            blockLayer = this.addBlockLayer(layerName);
+            blockLayer.blocks = result.blocks;
+            blockLayer.sourceLayerId = imageLayerId;
+        }
+
+        this._emitChange();
+
+        return blockLayer;
+    }
+
+    /**
+     * Blockify using difference between two images
+     * @param {number} beforeLayerId - "Before" image layer ID
+     * @param {number} afterLayerId - "After" image layer ID
+     * @param {Object} options - Blockify options
+     * @returns {BlockLayer} The created block layer
+     */
+    blockifyDiff(beforeLayerId, afterLayerId, options = {}) {
+        const beforeLayer = this.getLayer(beforeLayerId);
+        const afterLayer = this.getLayer(afterLayerId);
+
+        if (!beforeLayer || beforeLayer.type !== 'image') {
+            throw new Error('有効な「前」画像レイヤーを指定してください');
+        }
+        if (!afterLayer || afterLayer.type !== 'image') {
+            throw new Error('有効な「後」画像レイヤーを指定してください');
+        }
+
+        if (!beforeLayer.image || !afterLayer.image) {
+            throw new Error('画像が読み込まれていません');
+        }
+
+        // Analyze difference
+        const result = ImageAnalyzer.analyzeDiff(
+            beforeLayer.image,
+            afterLayer.image,
+            options
+        );
+
+        // Create new block layer
+        const layerName = `${afterLayer.name}_diff_blocks`;
+        const blockLayer = this.addBlockLayer(layerName);
+        blockLayer.blocks = result.blocks;
+        blockLayer.sourceLayerId = afterLayerId;
+
+        this._emitChange();
+
+        return blockLayer;
+    }
+
+    /**
+     * Get blockify preview without creating layer
+     * @param {number} imageLayerId - Source image layer ID
+     * @param {Object} options - Blockify options
+     * @returns {{blocks: Map, totalHexes: number, filledHexes: number}}
+     */
+    getBlockifyPreview(imageLayerId, options = {}) {
+        const imageLayer = this.getLayer(imageLayerId);
+        if (!imageLayer || imageLayer.type !== 'image' || !imageLayer.image) {
+            return { blocks: new Map(), totalHexes: 0, filledHexes: 0 };
+        }
+
+        return ImageAnalyzer.analyzeAlpha(imageLayer.image, options);
+    }
+
+    /**
+     * Duplicate a layer
+     * @param {number} layerId - Layer ID to duplicate
+     * @returns {ImageLayer|BlockLayer} The duplicated layer
+     */
+    duplicateLayer(layerId) {
+        const layer = this.getLayer(layerId);
+        if (!layer) {
+            throw new Error('レイヤーが見つかりません');
+        }
+
+        if (layer.type === 'image') {
+            // Create new image element
+            const newImage = new Image();
+            newImage.src = layer.imageData;
+
+            const newLayer = this.addLayer(
+                `${layer.name}_copy`,
+                newImage,
+                layer.imageData
+            );
+            newLayer.visible = layer.visible;
+            return newLayer;
+        } else {
+            // Duplicate block layer
+            const newLayer = this.addBlockLayer(`${layer.name}_copy`);
+            newLayer.visible = layer.visible;
+            newLayer.sourceLayerId = layer.sourceLayerId;
+
+            // Deep copy blocks
+            for (const [key, block] of layer.blocks) {
+                newLayer.blocks.set(key, { ...block });
+            }
+
+            this._emitChange();
+            return newLayer;
+        }
     }
 }
