@@ -113,6 +113,7 @@ export class UIController {
 
             // Message panel
             messageList: document.getElementById('message-list'),
+            copyMessagesBtn: document.getElementById('btn-copy-messages'),
             clearMessagesBtn: document.getElementById('btn-clear-messages')
         };
 
@@ -263,6 +264,7 @@ export class UIController {
         });
 
         // Message panel
+        this.elements.copyMessagesBtn?.addEventListener('click', () => this._copyAllMessages());
         this.elements.clearMessagesBtn?.addEventListener('click', () => this._clearMessages());
 
         // Blockify dialog
@@ -554,7 +556,18 @@ export class UIController {
                 <span class="message-icon">${typeConfig.icon}</span>
                 <span class="message-text">${msg.text}</span>
                 <span class="message-time">${msg.time}</span>
+                <button class="message-copy-btn" title="コピー">📋</button>
             `;
+
+            // Add copy button click handler
+            const copyBtn = div.querySelector('.message-copy-btn');
+            copyBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(msg.text).then(() => {
+                    copyBtn.textContent = '✓';
+                    setTimeout(() => { copyBtn.textContent = '📋'; }, 1000);
+                });
+            });
+
             list.appendChild(div);
         }
 
@@ -569,6 +582,22 @@ export class UIController {
     _clearMessages() {
         this.messages = [];
         this._renderMessages();
+    }
+
+    /**
+     * Copy all messages to clipboard
+     * @private
+     */
+    _copyAllMessages() {
+        const text = this.messages.map(msg => `[${msg.time}] ${msg.text}`).join('\n');
+        navigator.clipboard.writeText(text).then(() => {
+            const btn = this.elements.copyMessagesBtn;
+            if (btn) {
+                const original = btn.textContent;
+                btn.textContent = '✓';
+                setTimeout(() => { btn.textContent = original; }, 1000);
+            }
+        });
     }
 
     // =========================================
@@ -607,12 +636,24 @@ export class UIController {
      */
     async _createNewStage() {
         const name = this.elements.newStageName.value || `Stage ${this.editor.getAllStages().length + 1}`;
-        const width = parseInt(this.elements.newStageWidth.value) || 1280;
-        const height = parseInt(this.elements.newStageHeight.value) || 720;
+        let width = parseInt(this.elements.newStageWidth.value) || 1280;
+        let height = parseInt(this.elements.newStageHeight.value) || 720;
         const gridSize = document.querySelector('input[name="grid-size"]:checked')?.value || 'medium';
         const imageFile = this.elements.newStageImage.files?.[0];
 
-        // Create stage
+        // If image provided, ensure we get actual image dimensions
+        if (imageFile) {
+            try {
+                const dimensions = await this._getImageDimensions(imageFile);
+                width = dimensions.width;
+                height = dimensions.height;
+                this._addMessage('info', `[DEBUG] 画像サイズ取得: ${width}x${height}`);
+            } catch (error) {
+                this._addMessage('warning', `画像サイズ取得失敗: ${error.message}`);
+            }
+        }
+
+        // Create stage with correct dimensions
         const stage = this.editor.createStage({
             name,
             width,
@@ -620,10 +661,13 @@ export class UIController {
             gridSize
         });
 
+        this._addMessage('info', `[DEBUG] ステージ作成: キャンバスサイズ ${width}x${height}`);
+
         // If base image provided, add it as first layer
         if (imageFile && stage) {
             try {
                 await this.editor.addImageLayer(imageFile);
+                this._addMessage('info', `[DEBUG] 画像レイヤー追加完了`);
             } catch (error) {
                 this._addMessage('error', `画像の追加に失敗: ${error.message}`);
             }
@@ -631,6 +675,28 @@ export class UIController {
 
         this._hideNewStageDialog();
         this._updateStageSelector();
+    }
+
+    /**
+     * Get image dimensions from file
+     * @private
+     * @param {File} file
+     * @returns {Promise<{width: number, height: number}>}
+     */
+    _getImageDimensions(file) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                console.log(`[DEBUG] Image loaded: ${img.width}x${img.height} (natural: ${img.naturalWidth}x${img.naturalHeight})`);
+                URL.revokeObjectURL(img.src);
+                resolve({ width: img.naturalWidth, height: img.naturalHeight });
+            };
+            img.onerror = () => {
+                URL.revokeObjectURL(img.src);
+                reject(new Error('Failed to load image'));
+            };
+            img.src = URL.createObjectURL(file);
+        });
     }
 
     /**

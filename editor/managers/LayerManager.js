@@ -610,6 +610,32 @@ export class LayerManager {
     }
 
     /**
+     * Find the nearest block layer above the given layer
+     * @param {number} layerId - The layer ID to search from
+     * @returns {BlockLayer|null} The nearest block layer above, or null if none found
+     */
+    findNearestBlockLayerAbove(layerId) {
+        const layerIndex = this.layers.findIndex(l => l.id === layerId);
+        if (layerIndex === -1) return null;
+
+        // Search upward (higher zIndex = later in array)
+        for (let i = layerIndex + 1; i < this.layers.length; i++) {
+            if (this.layers[i].type === 'block') {
+                return this.layers[i];
+            }
+        }
+
+        // If no block layer above, search downward
+        for (let i = layerIndex - 1; i >= 0; i--) {
+            if (this.layers[i].type === 'block') {
+                return this.layers[i];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Blockify - Generate blocks from an image layer
      * @param {number} imageLayerId - Source image layer ID
      * @param {Object} options - Blockify options

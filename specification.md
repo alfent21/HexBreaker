@@ -199,9 +199,10 @@ if (img.width !== stage.canvas.width || img.height !== stage.canvas.height) {
 - 画像リンクブロック: リンク画像 + **エンボス効果**（立体感）
 
 **エンボス効果**:
-- 六角形の縁にハイライト（左上）とシャドウ（右下）
+- 六角形の**内側**にハイライト（左上）とシャドウ（右下）を描画
+- 内側描画により隣接ブロックとの干渉を防止
 - ブロックであることが視覚的に明確になる
-- ゲーム画面でも同様に描画
+- **エディターとゲームで同一の描画コード**（`shared/Renderer.js`）を使用
 
 **ゲーム時の挙動**:
 - ブロック破壊時、リンク画像の該当ヘックス領域を透明化
@@ -987,6 +988,8 @@ brushSize: 'M'                  // ブラシサイズ
 - **アクティブレイヤー**: クリックで選択されたレイヤー（編集対象）。
 - **右クリックメニュー**: レイヤー複製、結合、ブロック化、プロパティ設定。
 
+> **レイヤー自動切替**: 画像レイヤーを選択した状態でブロック操作（ブラシ、消しゴム、塗りつぶし）を行おうとすると、確認ダイアログが表示される。「レイヤー「○○」を選択して編集しますか？」で「OK」を選択すると、最寄りのブロックレイヤー（選択中の画像レイヤーより上層にあるブロックレイヤー、なければ下層を探索）に自動切替してから操作を実行する。ブロックレイヤーが存在しない場合は警告メッセージを表示し、操作を中止する。
+
 #### B. レイヤープロパティ (Layer Properties - Contextual)
 選択中のレイヤー種別に応じて内容が変化する。
 - **共通**: 名前変更、不透明度、描画モード、表示/ロック切替。
@@ -1318,8 +1321,50 @@ brushSize: 'M'                  // ブラシサイズ
 │   ├── entities/           # (Ball, Paddle, Block, Item...)
 │   └── physics/            # (Collision, HexMath...)
 └── shared/
-    └── HexMath.js          # エディタ・ゲーム共通の数学関数
+    ├── HexMath.js          # エディタ・ゲーム共通の数学関数
+    └── Renderer.js         # エディタ・ゲーム共通の描画関数
 ```
+
+### 5.2. 共有描画モジュール (Shared Renderer)
+
+エディターとゲームで**同一の描画結果**を保証するため、`shared/Renderer.js` に描画ロジックを集約している。
+
+#### 提供関数
+
+| 関数 | 用途 |
+|------|------|
+| `drawHexBlock(ctx, x, y, radius, color, options)` | ヘックスブロック描画（エンボス込み） |
+| `drawLine(ctx, line, options)` | ライン描画（タイプ別スタイル適用） |
+| `drawLines(ctx, lines, options)` | 複数ライン一括描画 |
+
+#### 設定 (`RENDER_CONFIG`)
+
+```javascript
+{
+    block: {
+        gap: 2,           // ブロック間隙間（radius減算値）
+        emboss: {
+            inset: 3,     // エンボス内側オフセット
+            highlight: 'rgba(255, 255, 255, 0.4)',
+            shadow: 'rgba(0, 0, 0, 0.4)',
+            lineWidth: 2
+        }
+    },
+    line: {
+        collision: { dashPattern: [], label: null },
+        paddle: { dashPattern: [5, 3], label: { text: 'PADDLE', ... } },
+        missline: { dashPattern: [10, 5], label: { text: 'MISS LINE', ... } },
+        decoration: { dashPattern: [], label: null }
+    }
+}
+```
+
+#### 使用箇所
+
+- **エディター**: `RenderSystem.js` が `drawHexBlock`, `drawLine` をインポート
+- **ゲーム**: `Game.js` が `drawHexBlock`, `drawLines` をインポート
+
+> **設計方針**: 描画に関するロジックは必ず `shared/Renderer.js` を経由させ、エディターで見た目がゲームと異なる状況を防止する。
 
 ## 6. 重要な機能ロジック (Key Logic)
 

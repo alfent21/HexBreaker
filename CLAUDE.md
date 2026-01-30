@@ -121,3 +121,27 @@ LASER/MAGNET/GHOSTは相互排他（同じ入力バインド）。
 詳細な仕様書（日本語）:
 - `specification.md` - エディター仕様（約1400行）
 - `game_specification.md` - ゲームエンジン仕様（約235行）
+
+## 前身プロジェクト
+
+**Hexposed** (`E:\サイドビジネス\自作ツール類\Hexposed`)
+
+HexBreakerの前身となるプロジェクト。機能の参考実装がある場合はこちらを確認すること。
+
+主な違い:
+- Hexposed: v3.0形式、BackgroundManager使用、BlockStockManager使用
+- HexBreaker: v5.0形式、LayerManager統合、StageManager導入
+
+Hexposedの主要ファイル:
+| ファイル | 役割 |
+|---------|------|
+| `editor/core/Editor.js` | エディターコア |
+| `editor/ui/CanvasEvents.js` | キャンバスイベント処理 |
+| `editor/ui/UIController.js` | UI統合コントローラー |
+| `editor/ui/ToolbarUI.js` | ツールバーUI |
+| `editor/managers/LayerManager.js` | レイヤー管理 |
+| `editor/managers/BlockManager.js` | ブロック管理 |
+| `editor/managers/LineManager.js` | ライン管理 |
+| `editor/systems/RenderSystem.js` | 描画システム |
+| `editor/systems/DiffDetector.js` | 差分検出 |
+| `game/game.js` | ゲームエンジン |

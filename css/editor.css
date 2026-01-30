@@ -486,7 +486,7 @@
 /* Message Panel */
 .message-panel {
     grid-area: message;
-    height: 80px;
+    height: 160px;
     display: flex;
     flex-direction: column;
     background: var(--color-bg-secondary);
@@ -506,6 +506,12 @@
     color: var(--color-text-muted);
 }
 
+.message-header-buttons {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+.message-copy-all-btn,
 .message-clear-btn {
     padding: 2px 8px;
     font-size: var(--font-size-sm);
@@ -516,6 +522,7 @@
     cursor: pointer;
 }
 
+.message-copy-all-btn:hover,
 .message-clear-btn:hover {
     background: var(--color-bg-hover);
     color: var(--color-text-primary);

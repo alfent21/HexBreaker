@@ -15,6 +15,7 @@ import { Shield } from './entities/Shield.js';
 import { CollisionSystem } from './physics/CollisionSystem.js';
 import { Boss, BOSS_STATES } from './entities/Boss.js';
 import { hexToPixel, GRID_SIZES } from '../shared/HexMath.js';
+import { drawHexBlock, drawLines } from '../shared/Renderer.js';
 
 // Weapon costs
 const WEAPON_COSTS = {
@@ -722,6 +723,9 @@ export class Game {
         ctx.fillStyle = '#1a1a2e';
         ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
 
+        // Draw lines (collision, paddle, missline, decoration)
+        this._renderLines();
+
         // Draw blocks
         this._renderBlocks();
 
@@ -758,49 +762,38 @@ export class Game {
     }
 
     /**
+     * Render lines (collision, paddle, missline, decoration)
+     * Uses shared Renderer module for consistent visuals
+     * @private
+     */
+    _renderLines() {
+        const lines = this.state.stageData?.lines;
+        if (!lines || lines.length === 0) return;
+
+        // Draw all lines using shared renderer
+        // In game mode, labels are optional (default: false for cleaner visuals)
+        drawLines(this.ctx, lines, {
+            showLabels: false
+        });
+    }
+
+    /**
      * Render hex blocks
+     * Uses shared Renderer module for consistent visuals
      * @private
      */
     _renderBlocks() {
-        const ctx = this.ctx;
-
         for (const block of this.state.blocks) {
             if (!block.alive) continue;
 
             const center = hexToPixel(block.row, block.col, this.gridSize);
-            const radius = this.gridSize.radius - 2; // Slight gap
 
-            // Draw hex
-            ctx.beginPath();
-            for (let i = 0; i < 6; i++) {
-                const angle = (Math.PI / 3) * i - Math.PI / 6;
-                const x = center.x + radius * Math.cos(angle);
-                const y = center.y + radius * Math.sin(angle);
-                if (i === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            }
-            ctx.closePath();
-
-            // Fill with color
-            ctx.fillStyle = block.color || '#64B5F6';
-            ctx.fill();
-
-            // Border
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-
-            // Durability indicator
-            if (block.durability > 1) {
-                ctx.fillStyle = '#FFFFFF';
-                ctx.font = 'bold 14px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(block.durability.toString(), center.x, center.y);
-            }
+            // Use shared renderer for block drawing
+            drawHexBlock(this.ctx, center.x, center.y, this.gridSize.radius, block.color || '#64B5F6', {
+                durability: block.durability,
+                gemDrop: block.gemDrop,
+                blockType: block.blockType
+            });
         }
     }
 
