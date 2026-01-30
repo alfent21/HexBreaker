@@ -6,7 +6,8 @@
  */
 
 import { GRID_SIZES, hexToPixel, getHexVertices } from '../../shared/HexMath.js';
-import { CANVAS_CONFIG, SELECTION_COLORS, LINE_TYPES, VERTEX_HANDLE } from '../core/Config.js';
+import { CANVAS_CONFIG, SELECTION_COLORS, LINE_TYPES, VERTEX_HANDLE, TOOLS } from '../core/Config.js';
+import { drawHexBlock, drawLine } from '../../shared/Renderer.js';
 
 export class RenderSystem {
     /**
@@ -42,6 +43,10 @@ export class RenderSystem {
         this.hoverHex = null;
         this.hoverLine = null;
         this.hoverVertex = null;
+        this.hoverSnapPoint = null;  // {x, y, snapped, snapType}
+
+        // Current tool (for brush preview)
+        this.currentTool = null;
 
         this._initCanvas();
     }
@@ -183,10 +188,22 @@ export class RenderSystem {
         ctx.translate(this.offsetX, this.offsetY);
         ctx.scale(this.scale, this.scale);
 
-        // Draw hover hex
+        // Draw hover hex(es) - use brush size for brush/eraser tools
         if (this.hoverHex) {
-            this._drawHexHighlight(ctx, this.hoverHex.row, this.hoverHex.col,
-                this.isErasing ? SELECTION_COLORS.eraser : SELECTION_COLORS.hover);
+            const useBrushSize = this.currentTool === TOOLS.BRUSH ||
+                                 this.currentTool === TOOLS.ERASER;
+            const color = this.isErasing ? SELECTION_COLORS.eraser : SELECTION_COLORS.hover;
+
+            if (useBrushSize && this.blockManager) {
+                // Draw multiple hexes based on brush size
+                const cells = this.blockManager.getBrushCells(this.hoverHex.row, this.hoverHex.col);
+                for (const cell of cells) {
+                    this._drawHexHighlight(ctx, cell.row, cell.col, color);
+                }
+            } else {
+                // Draw single hex for other tools
+                this._drawHexHighlight(ctx, this.hoverHex.row, this.hoverHex.col, color);
+            }
         }
 
         // Draw selected hexes
@@ -210,6 +227,11 @@ export class RenderSystem {
             }
         }
 
+        // Draw snap point indicator (only when line tool active)
+        if (this.hoverSnapPoint && this.hoverSnapPoint.snapped && this.currentTool === TOOLS.LINE) {
+            this._drawSnapIndicator(ctx, this.hoverSnapPoint);
+        }
+
         ctx.restore();
     }
 
@@ -225,6 +247,7 @@ export class RenderSystem {
 
     /**
      * Draw block layer
+     * Uses shared Renderer module for consistent visuals
      * @private
      */
     _drawBlockLayer(ctx, layer) {
@@ -233,120 +256,15 @@ export class RenderSystem {
 
         for (const [key, block] of layer.blocks) {
             const center = hexToPixel(block.row, block.col, this.gridSize);
-            const vertices = getHexVertices(center.x, center.y, this.gridSize.radius);
 
-            // Draw hex shape
-            ctx.beginPath();
-            ctx.moveTo(vertices[0].x, vertices[0].y);
-            for (let i = 1; i < vertices.length; i++) {
-                ctx.lineTo(vertices[i].x, vertices[i].y);
-            }
-            ctx.closePath();
-
-            // Fill with color or clipped image
-            if (sourceLayer && sourceLayer.image) {
-                // Clip image to hex
-                ctx.save();
-                ctx.clip();
-                ctx.drawImage(sourceLayer.image, 0, 0);
-                ctx.restore();
-            } else {
-                ctx.fillStyle = block.color;
-                ctx.fill();
-            }
-
-            // Draw emboss effect
-            this._drawHexEmboss(ctx, center, vertices);
-
-            // Draw durability indicator
-            if (block.durability > 1) {
-                this._drawDurabilityText(ctx, center, block.durability);
-            }
-
-            // Draw special block indicators
-            if (block.gemDrop === 'guaranteed') {
-                this._drawGemIcon(ctx, center, '#FFD700');
-            } else if (block.gemDrop === 'infinite') {
-                this._drawGemIcon(ctx, center, '#FF00FF');
-            }
-
-            if (block.blockType === 'key') {
-                this._drawKeyIcon(ctx, center);
-            } else if (block.blockType === 'lock') {
-                this._drawLockIcon(ctx, center);
-            }
+            // Use shared renderer for block drawing
+            drawHexBlock(ctx, center.x, center.y, this.gridSize.radius, block.color, {
+                durability: block.durability,
+                gemDrop: block.gemDrop,
+                blockType: block.blockType,
+                clipImage: sourceLayer?.image || null
+            });
         }
-    }
-
-    /**
-     * Draw hex emboss effect
-     * @private
-     */
-    _drawHexEmboss(ctx, center, vertices) {
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 2;
-
-        // Top-left highlight
-        ctx.beginPath();
-        ctx.moveTo(vertices[5].x, vertices[5].y);
-        ctx.lineTo(vertices[0].x, vertices[0].y);
-        ctx.lineTo(vertices[1].x, vertices[1].y);
-        ctx.stroke();
-
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
-
-        // Bottom-right shadow
-        ctx.beginPath();
-        ctx.moveTo(vertices[2].x, vertices[2].y);
-        ctx.lineTo(vertices[3].x, vertices[3].y);
-        ctx.lineTo(vertices[4].x, vertices[4].y);
-        ctx.stroke();
-    }
-
-    /**
-     * Draw durability text
-     * @private
-     */
-    _drawDurabilityText(ctx, center, durability) {
-        ctx.font = 'bold 12px sans-serif';
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(durability.toString(), center.x, center.y);
-    }
-
-    /**
-     * Draw gem icon
-     * @private
-     */
-    _drawGemIcon(ctx, center, color) {
-        ctx.fillStyle = color;
-        ctx.font = '10px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText('💎', center.x, center.y - 5);
-    }
-
-    /**
-     * Draw key icon
-     * @private
-     */
-    _drawKeyIcon(ctx, center) {
-        ctx.font = '14px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('🔑', center.x, center.y);
-    }
-
-    /**
-     * Draw lock icon
-     * @private
-     */
-    _drawLockIcon(ctx, center) {
-        ctx.font = '14px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('🔒', center.x, center.y);
     }
 
     /**
@@ -393,6 +311,7 @@ export class RenderSystem {
 
     /**
      * Draw all lines
+     * Uses shared Renderer module for consistent visuals
      * @private
      */
     _drawLines(ctx) {
@@ -401,79 +320,12 @@ export class RenderSystem {
         for (const line of lines) {
             const isSelected = line.id === this.lineManager.selectedLineId;
 
-            // Draw selection highlight
-            if (isSelected) {
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = line.thickness + 4;
-                ctx.globalAlpha = 0.5;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-
-                this._drawLinePath(ctx, line);
-                ctx.stroke();
-
-                ctx.globalAlpha = 1;
-            }
-
-            // Draw line
-            const typeConfig = LINE_TYPES[line.type.toUpperCase()];
-            ctx.strokeStyle = line.color;
-            ctx.lineWidth = line.thickness;
-            ctx.globalAlpha = line.opacity;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.setLineDash(typeConfig?.dashPattern || []);
-
-            this._drawLinePath(ctx, line);
-            ctx.stroke();
-
-            ctx.setLineDash([]);
-            ctx.globalAlpha = 1;
-
-            // Draw label
-            if (typeConfig?.label && line.points.length >= 2) {
-                this._drawLineLabel(ctx, line.points[0], line.points[1], typeConfig.label);
-            }
+            // Use shared renderer for line drawing
+            drawLine(ctx, line, {
+                showLabel: true,
+                isSelected: isSelected
+            });
         }
-    }
-
-    /**
-     * Draw line path
-     * @private
-     */
-    _drawLinePath(ctx, line) {
-        if (line.points.length < 2) return;
-
-        ctx.beginPath();
-        ctx.moveTo(line.points[0].x, line.points[0].y);
-
-        for (let i = 1; i < line.points.length; i++) {
-            ctx.lineTo(line.points[i].x, line.points[i].y);
-        }
-
-        if (line.closed) {
-            ctx.closePath();
-        }
-    }
-
-    /**
-     * Draw line label
-     * @private
-     */
-    _drawLineLabel(ctx, p1, p2, label) {
-        const midX = (p1.x + p2.x) / 2;
-        const midY = (p1.y + p2.y) / 2 - 25;
-
-        ctx.font = 'bold 14px sans-serif';
-        const textWidth = ctx.measureText(label.text).width;
-
-        ctx.fillStyle = label.bgColor;
-        ctx.fillRect(midX - textWidth / 2 - 4, midY - 9, textWidth + 8, 18);
-
-        ctx.fillStyle = label.textColor;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label.text, midX, midY);
     }
 
     /**
@@ -555,6 +407,52 @@ export class RenderSystem {
     }
 
     /**
+     * Draw snap indicator
+     * @private
+     */
+    _drawSnapIndicator(ctx, snapPoint) {
+        const { x, y, snapType } = snapPoint;
+
+        // Yellow dot for snap point
+        ctx.fillStyle = '#FFD700';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Edge snap: draw line along edge
+        if (snapType === 'edge') {
+            const stage = this.layerManager?.editor?.stageManager?.currentStage;
+            if (stage) {
+                ctx.strokeStyle = 'rgba(255, 215, 0, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+
+                if (snapPoint.edge === 'left' || snapPoint.edge === 'right') {
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, stage.height);
+                } else {
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(stage.width, y);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }
+    }
+
+    /**
+     * Set hover snap point
+     * @param {Object|null} snapPoint - {x, y, snapped, snapType, ...}
+     */
+    setHoverSnapPoint(snapPoint) {
+        this.hoverSnapPoint = snapPoint;
+    }
+
+    /**
      * Set hover hex position
      * @param {number|null} row
      * @param {number|null} col
@@ -573,5 +471,13 @@ export class RenderSystem {
      */
     setErasing(isErasing) {
         this.isErasing = isErasing;
+    }
+
+    /**
+     * Set current tool (for brush size preview)
+     * @param {string} tool
+     */
+    setCurrentTool(tool) {
+        this.currentTool = tool;
     }
 }

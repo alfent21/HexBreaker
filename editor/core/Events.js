@@ -7,6 +7,8 @@
 
 import { pixelToHex } from '../../shared/HexMath.js';
 import { TOOLS, ZOOM_CONFIG } from '../core/Config.js';
+import { CursorManager } from '../utils/CursorManager.js';
+import { SnapHelper } from '../utils/SnapHelper.js';
 
 export class Events {
     /**
@@ -28,7 +30,51 @@ export class Events {
         this.ctrlPressed = false;
         this.spacePressed = false;
 
+        // Cursor manager
+        this.cursorManager = new CursorManager();
+
         this._bindEvents();
+
+        // Listen for tool changes
+        this.editor.on('toolChanged', () => {
+            this.updateCursor();
+            this.editor.renderSystem.setCurrentTool(this.editor.currentTool);
+        });
+
+        // Listen for grid size changes
+        this.editor.on('gridSizeChanged', () => {
+            this.cursorManager.clearCache();
+            this.updateCursor();
+        });
+
+        // Listen for brush size changes (re-render to update preview)
+        this.editor.on('brushSizeChanged', () => {
+            this.cursorManager.clearCache();
+            this.updateCursor();
+            this.editor.render();
+        });
+
+        // Set initial cursor and tool after a brief delay to ensure everything is ready
+        setTimeout(() => {
+            this.updateCursor();
+            this.editor.renderSystem.setCurrentTool(this.editor.currentTool);
+        }, 0);
+    }
+
+    /**
+     * Update cursor based on current tool and grid size
+     */
+    updateCursor() {
+        if (this.spacePressed || this.isPanning) {
+            return; // Don't override pan cursor
+        }
+
+        const tool = this.editor.currentTool;
+        const gridSize = this.editor.renderSystem.gridSize;
+        const isErasing = tool === TOOLS.BRUSH && this.shiftPressed;
+
+        const cursor = this.cursorManager.getCursor(tool, gridSize, isErasing);
+        this.editor.overlayCanvas.style.cursor = cursor;
     }
 
     /**
@@ -110,6 +156,12 @@ export class Events {
         const gridSize = this.editor.renderSystem.gridSize;
         const hex = pixelToHex(coords.x, coords.y, gridSize);
 
+        // Check if we need to switch to a block layer for block operations
+        const isBlockTool = [TOOLS.BRUSH, TOOLS.ERASER, TOOLS.FILL].includes(tool);
+        if (isBlockTool && !this._ensureBlockLayerActive()) {
+            return; // User cancelled or no block layer available
+        }
+
         switch (tool) {
             case TOOLS.BRUSH:
                 this.isDragging = true;
@@ -184,12 +236,14 @@ export class Events {
                 return;
             }
 
-            // Start new line
+            // Start new line with snap
             lineManager.selectLine(null);
-            lineManager.startDrawing(coords.x, coords.y);
+            const snapStart = SnapHelper.getSnapPoint(coords.x, coords.y, this.editor);
+            lineManager.startDrawing(snapStart.x, snapStart.y);
         } else {
-            // Add point to current line
-            lineManager.addPoint(coords.x, coords.y);
+            // Add point to current line with snap
+            const snapPoint = SnapHelper.getSnapPoint(coords.x, coords.y, this.editor);
+            lineManager.addPoint(snapPoint.x, snapPoint.y);
         }
 
         this.editor.render();
@@ -237,6 +291,14 @@ export class Events {
         const hex = pixelToHex(coords.x, coords.y, gridSize);
         this.editor.renderSystem.setHoverHex(hex.row, hex.col);
 
+        // Update snap point for line tool
+        if (this.editor.currentTool === TOOLS.LINE) {
+            const snapPoint = SnapHelper.getSnapPoint(coords.x, coords.y, this.editor);
+            this.editor.renderSystem.setHoverSnapPoint(snapPoint);
+        } else {
+            this.editor.renderSystem.setHoverSnapPoint(null);
+        }
+
         // Handle dragging
         if (this.isDragging) {
             switch (this.editor.currentTool) {
@@ -253,13 +315,14 @@ export class Events {
                     break;
 
                 case TOOLS.LINE:
-                    // Drag vertex
+                    // Drag vertex with snap
                     if (this.editor.lineManager.selectedLineId &&
                         this.editor.lineManager.selectedVertexIndex !== null) {
+                        const snapDrag = SnapHelper.getSnapPoint(coords.x, coords.y, this.editor);
                         this.editor.lineManager.moveVertex(
                             this.editor.lineManager.selectedLineId,
                             this.editor.lineManager.selectedVertexIndex,
-                            coords.x, coords.y
+                            snapDrag.x, snapDrag.y
                         );
                     }
                     break;
@@ -308,7 +371,7 @@ export class Events {
         if (this.spacePressed) {
             this.editor.overlayCanvas.style.cursor = 'grab';
         } else {
-            this.editor.overlayCanvas.style.cursor = 'default';
+            this.updateCursor();
         }
 
         // Finish selection
@@ -396,7 +459,10 @@ export class Events {
         // Line tool: cancel last point or delete vertex
         if (this.editor.currentTool === TOOLS.LINE) {
             if (this.editor.lineManager.isDrawing) {
-                this.editor.lineManager.undoLastPoint();
+                // undoLastPoint returns false if only 1 point remains - cancel entirely
+                if (!this.editor.lineManager.undoLastPoint()) {
+                    this.editor.lineManager.cancelDrawing();
+                }
                 this.editor.render();
                 return;
             }
@@ -441,13 +507,59 @@ export class Events {
     }
 
     /**
+     * Ensure a block layer is active for block operations.
+     * If an image layer is active, prompt user to switch to nearest block layer.
+     * @private
+     * @returns {boolean} True if a block layer is now active, false if cancelled or unavailable
+     */
+    _ensureBlockLayerActive() {
+        const layerManager = this.editor.layerManager;
+        const activeLayer = layerManager.getActiveLayer();
+
+        // Already a block layer
+        if (activeLayer && activeLayer.type === 'block') {
+            return true;
+        }
+
+        // No active layer
+        if (!activeLayer) {
+            this.editor.emit('message', { type: 'warning', text: 'レイヤーが選択されていません' });
+            return false;
+        }
+
+        // Active layer is image - find nearest block layer
+        const nearestBlockLayer = layerManager.findNearestBlockLayerAbove(activeLayer.id);
+
+        if (!nearestBlockLayer) {
+            this.editor.emit('message', { type: 'warning', text: 'ブロックレイヤーがありません。ブロックレイヤーを追加してください。' });
+            return false;
+        }
+
+        // Prompt user
+        const shouldSwitch = confirm(`レイヤー「${nearestBlockLayer.name}」を選択して編集しますか？`);
+
+        if (shouldSwitch) {
+            layerManager.setActiveLayer(nearestBlockLayer.id);
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Key down handler
      * @private
      */
     _onKeyDown(e) {
         // Update modifier keys
+        const wasShiftPressed = this.shiftPressed;
         this.shiftPressed = e.shiftKey;
         this.ctrlPressed = e.ctrlKey;
+
+        // Update cursor when shift pressed (brush eraser mode)
+        if (!wasShiftPressed && this.shiftPressed) {
+            this.updateCursor();
+        }
 
         if (e.code === 'Space' && !this.spacePressed) {
             this.spacePressed = true;
@@ -578,8 +690,13 @@ export class Events {
         if (e.code === 'Space') {
             this.spacePressed = false;
             if (!this.isPanning) {
-                this.editor.overlayCanvas.style.cursor = 'default';
+                this.updateCursor();
             }
+        }
+
+        // Update cursor when shift released (brush eraser mode)
+        if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+            this.updateCursor();
         }
     }
 }
