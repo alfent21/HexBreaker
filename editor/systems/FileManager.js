@@ -137,7 +137,23 @@ export class FileManager {
      * @returns {Promise<File|null>}
      */
     async openFilePicker(options = {}) {
-        // input要素を使ったファイル選択
+        // File System Access API が使える場合はそちらを優先（最後のディレクトリを記憶）
+        if (this.supportsFSA && !options.multiple) {
+            try {
+                const pickerOptions = {
+                    types: this._getFileTypesForOpen(options.accept)
+                };
+                const [handle] = await window.showOpenFilePicker(pickerOptions);
+                return await handle.getFile();
+            } catch (e) {
+                if (e.name === 'AbortError') {
+                    return null; // ユーザーキャンセル
+                }
+                // フォールバック
+            }
+        }
+
+        // 従来のinput要素を使ったファイル選択
         return new Promise((resolve) => {
             const input = document.createElement('input');
             input.type = 'file';
@@ -153,6 +169,23 @@ export class FileManager {
             };
             input.click();
         });
+    }
+
+    /**
+     * accept文字列からファイルタイプオプションを生成（開く用）
+     * @private
+     */
+    _getFileTypesForOpen(accept) {
+        if (!accept) return undefined;
+
+        // ".hbp,.json" → types配列に変換
+        const extensions = accept.split(',').map(s => s.trim());
+        return [{
+            description: 'プロジェクトファイル',
+            accept: {
+                'application/json': extensions
+            }
+        }];
     }
 
     // =========================================================================
