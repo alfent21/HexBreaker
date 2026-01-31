@@ -8,6 +8,7 @@
 
 import { getHexKey, parseHexKey, GRID_SIZES } from '../../shared/HexMath.js';
 import { ImageAnalyzer } from '../utils/ImageAnalyzer.js';
+import { fileManager } from '../systems/FileManager.js';
 
 /**
  * @typedef {Object} ImageLayer
@@ -262,41 +263,14 @@ export class LayerManager {
      * @param {File} file - Image file
      * @returns {Promise<void>}
      */
-    updateBaseLayerFromFile(file) {
-        return new Promise((resolve, reject) => {
-            if (!this.baseLayer) {
-                reject(new Error('ベースレイヤーが存在しません'));
-                return;
-            }
+    async updateBaseLayerFromFile(file) {
+        if (!this.baseLayer) {
+            throw new Error('ベースレイヤーが存在しません');
+        }
 
-            const reader = new FileReader();
-
-            reader.onload = (e) => {
-                const imageData = e.target.result;
-                const img = new Image();
-
-                img.onload = () => {
-                    try {
-                        this.setBaseLayerImage(img, imageData);
-                        resolve();
-                    } catch (error) {
-                        reject(error);
-                    }
-                };
-
-                img.onerror = () => {
-                    reject(new Error('画像の読み込みに失敗しました'));
-                };
-
-                img.src = imageData;
-            };
-
-            reader.onerror = () => {
-                reject(new Error('ファイルの読み込みに失敗しました'));
-            };
-
-            reader.readAsDataURL(file);
-        });
+        // FileManagerを使用して画像を読み込み
+        const { image, dataURL } = await fileManager.loadImageFile(file);
+        this.setBaseLayerImage(image, dataURL);
     }
 
     /**
@@ -304,49 +278,26 @@ export class LayerManager {
      * @param {File} file - Image file
      * @returns {Promise<ImageLayer>} The created layer
      */
-    addLayerFromFile(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
+    async addLayerFromFile(file) {
+        // FileManagerを使用して画像を読み込み
+        const { image, dataURL, width, height } = await fileManager.loadImageFile(file);
 
-            reader.onload = (e) => {
-                const imageData = e.target.result;
-                const img = new Image();
+        // サイズ検証
+        if (this.gameAreaSize) {
+            if (width !== this.gameAreaSize.width || height !== this.gameAreaSize.height) {
+                throw new Error(
+                    `画像サイズが一致しません。` +
+                    `期待: ${this.gameAreaSize.width}x${this.gameAreaSize.height}, ` +
+                    `実際: ${width}x${height}`
+                );
+            }
+        } else {
+            // 最初のレイヤーがゲームエリアサイズを設定
+            this.gameAreaSize = { width, height };
+        }
 
-                img.onload = () => {
-                    // Validate size against gameArea
-                    if (this.gameAreaSize) {
-                        if (img.width !== this.gameAreaSize.width ||
-                            img.height !== this.gameAreaSize.height) {
-                            reject(new Error(
-                                `画像サイズが一致しません。` +
-                                `期待: ${this.gameAreaSize.width}x${this.gameAreaSize.height}, ` +
-                                `実際: ${img.width}x${img.height}`
-                            ));
-                            return;
-                        }
-                    } else {
-                        // First layer sets the game area size
-                        this.gameAreaSize = { width: img.width, height: img.height };
-                    }
-
-                    const name = file.name.replace(/\.[^/.]+$/, '');
-                    const layer = this.addLayer(name, img, imageData);
-                    resolve(layer);
-                };
-
-                img.onerror = () => {
-                    reject(new Error('画像の読み込みに失敗しました'));
-                };
-
-                img.src = imageData;
-            };
-
-            reader.onerror = () => {
-                reject(new Error('ファイルの読み込みに失敗しました'));
-            };
-
-            reader.readAsDataURL(file);
-        });
+        const name = file.name.replace(/\.[^/.]+$/, '');
+        return this.addLayer(name, image, dataURL);
     }
 
     /**

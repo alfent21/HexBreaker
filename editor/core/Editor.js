@@ -16,6 +16,7 @@ import { LineManager } from '../managers/LineManager.js';
 import { StageManager } from '../managers/StageManager.js';
 import { StartupManager } from '../managers/StartupManager.js';
 import { RenderSystem } from '../systems/RenderSystem.js';
+import { createProjectFileSystem } from '../systems/ProjectFileSystem.js';
 
 export class Editor {
     constructor() {
@@ -35,6 +36,9 @@ export class Editor {
 
         // Startup Manager
         this.startupManager = new StartupManager(this);
+
+        // Project File System (new unified file operations)
+        this.projectFileSystem = createProjectFileSystem(this);
 
         // State
         this.currentTool = TOOLS.BRUSH;

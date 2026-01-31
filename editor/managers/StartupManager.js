@@ -6,6 +6,7 @@
  */
 
 import { BG_COLOR_PRESETS } from './LayerManager.js';
+import { fileManager } from '../systems/FileManager.js';
 
 /**
  * @typedef {Object} WizardState
@@ -407,46 +408,46 @@ export class StartupManager {
      * @private
      * @param {File} file
      */
-    _handleImageSelect(file) {
+    async _handleImageSelect(file) {
         const state = this.wizardState;
-        const reader = new FileReader();
 
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-                state.imageFile = file;
-                state.imageData = e.target.result;
-                state.imageWidth = img.width;
-                state.imageHeight = img.height;
+        try {
+            // FileManagerを使用して画像を読み込み
+            const { image, dataURL, width, height } = await fileManager.loadImageFile(file);
 
-                // Update UI
-                const dropZone = document.getElementById('wizard-drop-zone');
-                const dropContent = dropZone?.querySelector('.drop-zone-content');
-                const previewContainer = document.getElementById('wizard-image-preview');
+            state.imageFile = file;
+            state.imageData = dataURL;
+            state.imageWidth = width;
+            state.imageHeight = height;
 
-                if (dropContent) dropContent.style.display = 'none';
-                previewContainer?.classList.remove('hidden');
+            // Update UI
+            const dropZone = document.getElementById('wizard-drop-zone');
+            const dropContent = dropZone?.querySelector('.drop-zone-content');
+            const previewContainer = document.getElementById('wizard-image-preview');
 
-                document.getElementById('wizard-preview-img').src = e.target.result;
-                document.getElementById('wizard-image-name').textContent = file.name;
-                document.getElementById('wizard-image-size').textContent =
-                    `${img.width} x ${img.height} px`;
+            if (dropContent) dropContent.style.display = 'none';
+            previewContainer?.classList.remove('hidden');
 
-                // Disable solid color mode
-                const checkbox = document.getElementById('wizard-solid-color-mode');
-                if (checkbox) {
-                    checkbox.checked = false;
-                    checkbox.disabled = true;
-                }
-                state.solidColorMode = false;
-                document.getElementById('wizard-color-panel')?.classList.add('hidden');
-                document.getElementById('wizard-size-panel')?.classList.add('hidden');
+            document.getElementById('wizard-preview-img').src = dataURL;
+            document.getElementById('wizard-image-name').textContent = file.name;
+            document.getElementById('wizard-image-size').textContent =
+                `${width} x ${height} px`;
 
-                this._updateStep1NextButton();
-            };
-            img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
+            // Disable solid color mode
+            const checkbox = document.getElementById('wizard-solid-color-mode');
+            if (checkbox) {
+                checkbox.checked = false;
+                checkbox.disabled = true;
+            }
+            state.solidColorMode = false;
+            document.getElementById('wizard-color-panel')?.classList.add('hidden');
+            document.getElementById('wizard-size-panel')?.classList.add('hidden');
+
+            this._updateStep1NextButton();
+        } catch (error) {
+            console.error('画像読み込みエラー:', error);
+            this.editor.emit('message', { type: 'error', text: error.message });
+        }
     }
 
     /**
