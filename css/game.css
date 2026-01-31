@@ -59,6 +59,43 @@
 }
 
 /* ==========================================================================
+   Header HUD / メッセージ切り替え
+   ========================================================================== */
+
+/* HUD表示 (通常時) */
+.header-hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.header-hud.hidden {
+    display: none;
+}
+
+/* メッセージ表示 (一時表示) */
+.header-message {
+    display: none;
+    width: 100%;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.header-message.visible {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.header-message--info { color: #64B5F6; }
+.header-message--success { color: #4CAF50; }
+.header-message--warning { color: #FFC107; }
+.header-message--error { color: #F44336; }
+
+/* ==========================================================================
    Header HUD要素
    ========================================================================== */
 
@@ -329,4 +366,42 @@
     flex-direction: column;
     gap: var(--spacing-sm);
     min-width: 200px;
+}
+
+/* Pause log */
+.pause-log {
+    max-height: 200px;
+    width: 300px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-sm);
+}
+
+.pause-log:empty {
+    display: none;
+}
+
+.pause-log-entry {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) 0;
+    font-size: var(--font-size-sm);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pause-log-entry:last-child {
+    border-bottom: none;
+}
+
+.pause-log-entry--info { color: #64B5F6; }
+.pause-log-entry--success { color: #4CAF50; }
+.pause-log-entry--warning { color: #FFC107; }
+.pause-log-entry--error { color: #F44336; }
+
+.pause-log-time {
+    color: var(--color-text-muted);
+    font-size: 10px;
+    min-width: 50px;
 }

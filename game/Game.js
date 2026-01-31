@@ -74,6 +74,11 @@ export class Game {
         this.backgroundImages = [];
         this.displayScale = 1;
 
+        // Message system
+        this._messageLog = [];
+        this._messageTimer = null;
+        this._blocksMessageShown = false;
+
         // Bind methods
         this._gameLoop = this._gameLoop.bind(this);
 
@@ -162,6 +167,7 @@ export class Game {
         this.laserCooldown = 0;
         this.boss = null;
         this.destroyedBlocks = [];
+        this._blocksMessageShown = false;
 
         // Create boss if stage has boss config
         if (stageData.boss) {
@@ -722,7 +728,7 @@ export class Game {
      * @private
      */
     _activateWeapon(weaponId) {
-        console.log(`Activated weapon: ${weaponId}`);
+        this.showMessage(`🔫 ${weaponId.toUpperCase()} activated!`, 'info', 2000);
 
         switch (weaponId) {
             case 'slow':
@@ -890,15 +896,10 @@ export class Game {
      * @private
      */
     _renderBlocks() {
-        // Debug: Log once on first render
-        if (!this._debugBlocksLogged && this.state.blocks.length > 0) {
-            console.log('[Debug] Blocks rendering:', {
-                blockCount: this.state.blocks.length,
-                firstBlock: this.state.blocks[0],
-                gridSize: this.gridSize,
-                sampleCenter: hexToPixel(this.state.blocks[0].row, this.state.blocks[0].col, this.gridSize)
-            });
-            this._debugBlocksLogged = true;
+        // Show block count message once on first render
+        if (!this._blocksMessageShown && this.state.blocks.length > 0) {
+            this.showMessage(`✓ ${this.state.blocks.length} blocks loaded`, 'success');
+            this._blocksMessageShown = true;
         }
 
         for (const block of this.state.blocks) {
@@ -1040,9 +1041,82 @@ export class Game {
     }
 
     /**
+     * Pause game
+     */
+    pause() {
+        if (this.state.state === STATES.PLAYING) {
+            this.state.state = STATES.PAUSED;
+        }
+    }
+
+    /**
+     * Resume game
+     */
+    resume() {
+        if (this.state.state === STATES.PAUSED) {
+            this.state.state = STATES.PLAYING;
+        }
+    }
+
+    /**
      * Stop game
      */
     stop() {
         this.running = false;
+    }
+
+    // =========================================================================
+    // Message System
+    // =========================================================================
+
+    /**
+     * Show a message in the header area
+     * @param {string} text - Message text
+     * @param {string} type - Message type ('info', 'success', 'warning', 'error')
+     * @param {number} duration - Display duration in ms (default: 3000)
+     */
+    showMessage(text, type = 'info', duration = 3000) {
+        // Add to log
+        this._messageLog.push({ text, type, time: Date.now() });
+
+        // Get DOM elements
+        const hud = document.getElementById('header-hud');
+        const msg = document.getElementById('header-message');
+
+        if (!hud || !msg) {
+            console.log(`[${type.toUpperCase()}] ${text}`);
+            return;
+        }
+
+        // Hide HUD, show message
+        hud.classList.add('hidden');
+        msg.className = `header-message visible header-message--${type}`;
+        msg.textContent = text;
+
+        // Clear existing timer
+        if (this._messageTimer) {
+            clearTimeout(this._messageTimer);
+        }
+
+        // Restore HUD after duration
+        this._messageTimer = setTimeout(() => {
+            msg.classList.remove('visible');
+            hud.classList.remove('hidden');
+        }, duration);
+    }
+
+    /**
+     * Get message log for pause screen
+     * @returns {Array<{text: string, type: string, time: number}>}
+     */
+    getMessageLog() {
+        return this._messageLog;
+    }
+
+    /**
+     * Clear message log
+     */
+    clearMessageLog() {
+        this._messageLog = [];
     }
 }

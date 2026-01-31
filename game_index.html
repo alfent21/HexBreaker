@@ -10,21 +10,26 @@
 
 <body>
     <div class="game-container">
-        <!-- Header: ジェム、スコア、ライフ -->
+        <!-- Header: HUD / メッセージ切り替え -->
         <header class="game-header">
-            <div class="hud-gems">
-                <span class="gem-icon">💎</span>
-                <span class="gem-count" id="gem-count">0</span>
+            <!-- HUD (通常時) -->
+            <div class="header-hud" id="header-hud">
+                <div class="hud-gems">
+                    <span class="gem-icon">💎</span>
+                    <span class="gem-count" id="gem-count">0</span>
+                </div>
+                <div class="hud-score">
+                    <span class="score-label">SCORE:</span>
+                    <span class="score-value" id="score-value">0</span>
+                </div>
+                <div class="hud-lives" id="lives-display">
+                    <span class="life-icon">❤️</span>
+                    <span class="life-icon">❤️</span>
+                    <span class="life-icon">❤️</span>
+                </div>
             </div>
-            <div class="hud-score">
-                <span class="score-label">SCORE:</span>
-                <span class="score-value" id="score-value">0</span>
-            </div>
-            <div class="hud-lives" id="lives-display">
-                <span class="life-icon">❤️</span>
-                <span class="life-icon">❤️</span>
-                <span class="life-icon">❤️</span>
-            </div>
+            <!-- メッセージ (一時表示) -->
+            <div class="header-message" id="header-message"></div>
         </header>
 
         <!-- Main: ゲームキャンバス -->
@@ -130,6 +135,20 @@
                 <button class="btn btn--primary" id="btn-next">次のステージ</button>
             </div>
         </div>
+
+        <!-- Pause Overlay -->
+        <div class="game-overlay" id="overlay-pause">
+            <div class="pause-menu">
+                <h2 class="pause-title">PAUSED</h2>
+                <div class="pause-log" id="pause-log">
+                    <!-- Log entries populated by JS -->
+                </div>
+                <div class="pause-buttons">
+                    <button class="btn btn--primary" id="btn-resume">再開</button>
+                    <button class="btn" id="btn-pause-quit">終了</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script type="module">
@@ -218,6 +237,61 @@
             document.getElementById('btn-next')?.addEventListener('click', () => {
                 overlayClear.classList.remove('active');
                 game.restart(); // For now, just restart same stage
+            });
+
+            // Pause functionality
+            const overlayPause = document.getElementById('overlay-pause');
+            const pauseLog = document.getElementById('pause-log');
+
+            function togglePause() {
+                if (overlayPause.classList.contains('active')) {
+                    // Resume
+                    overlayPause.classList.remove('active');
+                    game.resume();
+                } else {
+                    // Pause
+                    game.pause();
+                    populatePauseLog();
+                    overlayPause.classList.add('active');
+                }
+            }
+
+            function populatePauseLog() {
+                const log = game.getMessageLog();
+                pauseLog.innerHTML = '';
+
+                if (log.length === 0) {
+                    pauseLog.innerHTML = '<div class="pause-log-entry pause-log-entry--info">ログなし</div>';
+                    return;
+                }
+
+                for (const entry of log.slice(-20)) { // Last 20 entries
+                    const div = document.createElement('div');
+                    div.className = `pause-log-entry pause-log-entry--${entry.type}`;
+
+                    const time = new Date(entry.time);
+                    const timeStr = time.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+                    div.innerHTML = `<span class="pause-log-time">${timeStr}</span><span>${entry.text}</span>`;
+                    pauseLog.appendChild(div);
+                }
+            }
+
+            // Escape key handler
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    togglePause();
+                }
+            });
+
+            document.getElementById('btn-resume')?.addEventListener('click', () => {
+                overlayPause.classList.remove('active');
+                game.resume();
+            });
+
+            document.getElementById('btn-pause-quit')?.addEventListener('click', () => {
+                overlayPause.classList.remove('active');
+                game.stop();
             });
 
             // Check for stage data from editor (via IndexedDB)
