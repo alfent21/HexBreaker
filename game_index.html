@@ -10,33 +10,36 @@
 
 <body>
     <div class="game-container">
-        <div class="game-canvas-wrapper">
+        <!-- Header: ジェム、スコア、ライフ -->
+        <header class="game-header">
+            <div class="hud-gems">
+                <span class="gem-icon">💎</span>
+                <span class="gem-count" id="gem-count">0</span>
+            </div>
+            <div class="hud-score">
+                <span class="score-label">SCORE:</span>
+                <span class="score-value" id="score-value">0</span>
+            </div>
+            <div class="hud-lives" id="lives-display">
+                <span class="life-icon">❤️</span>
+                <span class="life-icon">❤️</span>
+                <span class="life-icon">❤️</span>
+            </div>
+        </header>
+
+        <!-- Main: ゲームキャンバス -->
+        <main class="game-main">
             <canvas id="gameCanvas" width="1280" height="720"></canvas>
 
-            <!-- HUD -->
-            <div class="game-hud">
-                <div class="hud-left">
-                    <div class="gem-counter">
-                        <span class="gem-icon">💎</span>
-                        <span class="gem-count" id="gem-count">0</span>
-                    </div>
-                </div>
-                <div class="hud-center">
-                    <div class="score-display">
-                        <span class="score-label">SCORE:</span>
-                        <span class="score-value" id="score-value">0</span>
-                    </div>
-                </div>
-                <div class="hud-right">
-                    <div class="lives-display" id="lives-display">
-                        <span class="life-icon">❤️</span>
-                        <span class="life-icon">❤️</span>
-                        <span class="life-icon">❤️</span>
-                    </div>
-                </div>
+            <!-- Combo Display (main内のrelative) -->
+            <div class="combo-display" id="combo-display">
+                <div class="combo-count" id="combo-count">1</div>
+                <div class="combo-label">COMBO</div>
             </div>
+        </main>
 
-            <!-- Weapon Panel -->
+        <!-- Footer: ウェポンパネル -->
+        <footer class="game-footer">
             <div class="weapon-panel">
                 <div class="weapon-slot" data-weapon="slow">
                     <span class="weapon-icon">🐢</span>
@@ -108,34 +111,23 @@
                     <span class="weapon-key">[7]</span>
                 </div>
             </div>
+        </footer>
 
-            <!-- Combo Display -->
-            <div class="combo-display" id="combo-display">
-                <div class="combo-count" id="combo-count">1</div>
-                <div class="combo-label">COMBO</div>
+        <!-- Game Overlays (position: fixed) -->
+        <div class="game-overlay" id="overlay-gameover">
+            <h1 class="game-overlay-title game-over">GAME OVER</h1>
+            <p class="game-overlay-score">Score: <span id="final-score">0</span></p>
+            <div class="game-overlay-buttons">
+                <button class="btn btn--primary" id="btn-continue">コンティニュー</button>
+                <button class="btn" id="btn-quit">終了</button>
             </div>
+        </div>
 
-            <!-- Game Overlays -->
-            <div class="game-overlay" id="overlay-gameover">
-                <h1 class="game-overlay-title game-over">GAME OVER</h1>
-                <p class="game-overlay-score">Score: <span id="final-score">0</span></p>
-                <div class="game-overlay-buttons">
-                    <button class="btn btn--primary" id="btn-continue">コンティニュー</button>
-                    <button class="btn" id="btn-quit">終了</button>
-                </div>
-            </div>
-
-            <div class="game-overlay" id="overlay-clear">
-                <h1 class="game-overlay-title stage-clear">STAGE CLEAR!</h1>
-                <p class="game-overlay-score">Score: <span id="clear-score">0</span></p>
-                <div class="game-overlay-buttons">
-                    <button class="btn btn--primary" id="btn-next">次のステージ</button>
-                </div>
-            </div>
-
-            <!-- Tips -->
-            <div class="tips-display" id="tips-display">
-                💡 右クリックを押し続けると時間を加速できます
+        <div class="game-overlay" id="overlay-clear">
+            <h1 class="game-overlay-title stage-clear">STAGE CLEAR!</h1>
+            <p class="game-overlay-score">Score: <span id="clear-score">0</span></p>
+            <div class="game-overlay-buttons">
+                <button class="btn btn--primary" id="btn-next">次のステージ</button>
             </div>
         </div>
     </div>

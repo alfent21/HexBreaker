@@ -134,8 +134,17 @@ export class Game {
 
         // Set grid size
         if (stageData.gridSize) {
-            this.gridSize = GRID_SIZES[stageData.gridSize] || GRID_SIZES.medium;
-            this.collision.setGridSize(stageData.gridSize);
+            if (typeof stageData.gridSize === 'string') {
+                // String key (e.g., 'medium') - look up in GRID_SIZES
+                this.gridSize = GRID_SIZES[stageData.gridSize] || GRID_SIZES.medium;
+                this.collision.setGridSize(stageData.gridSize);
+            } else {
+                // Object format from serialization - use directly
+                this.gridSize = stageData.gridSize;
+                // Determine grid size name for collision system
+                const gridName = this._getGridSizeName(stageData.gridSize.radius);
+                this.collision.setGridSize(gridName);
+            }
         }
 
         // Load background images
@@ -221,6 +230,18 @@ export class Game {
             '#FFEB3B', '#FFC107', '#FF9800', '#FF5722'
         ];
         return colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    /**
+     * Get grid size name from radius value
+     * @param {number} radius
+     * @returns {string}
+     * @private
+     */
+    _getGridSizeName(radius) {
+        if (radius <= 15) return 'small';
+        if (radius <= 40) return 'medium';
+        return 'large';
     }
 
     /**
@@ -869,6 +890,17 @@ export class Game {
      * @private
      */
     _renderBlocks() {
+        // Debug: Log once on first render
+        if (!this._debugBlocksLogged && this.state.blocks.length > 0) {
+            console.log('[Debug] Blocks rendering:', {
+                blockCount: this.state.blocks.length,
+                firstBlock: this.state.blocks[0],
+                gridSize: this.gridSize,
+                sampleCenter: hexToPixel(this.state.blocks[0].row, this.state.blocks[0].col, this.gridSize)
+            });
+            this._debugBlocksLogged = true;
+        }
+
         for (const block of this.state.blocks) {
             if (!block.alive) continue;
 

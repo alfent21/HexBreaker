@@ -5,29 +5,52 @@
 
 @import url('./ui.css');
 
-/* Game container */
+/* ==========================================================================
+   3段レイアウト: Header / Main / Footer
+   ========================================================================== */
+
+/* Game container - 3段flexレイアウト */
 .game-container {
     display: flex;
     flex-direction: column;
-    align-items: center;
     height: 100vh;
     max-height: 100vh;
     overflow: hidden;
     background: var(--color-bg-primary);
 }
 
-/* Game canvas wrapper - takes available space */
-.game-canvas-wrapper {
+/* Header: ジェム、スコア、ライフ - 固定高さ50px */
+.game-header {
+    height: 50px;
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 var(--spacing-lg);
+    background: rgba(0, 0, 0, 0.9);
+    border-bottom: 1px solid var(--color-border);
+}
+
+/* Main: ゲームキャンバス - 残りスペースを使用 */
+.game-main {
     flex: 1;
-    position: relative;
     display: flex;
     justify-content: center;
     align-items: center;
+    position: relative;
     overflow: hidden;
-    min-height: 0; /* Allow flex shrinking */
-    width: 100%;
-    padding: var(--spacing-md);
-    box-sizing: border-box;
+    min-height: 0; /* flex shrinkingを許可 */
+}
+
+/* Footer: ウェポンパネル - 固定高さ80px */
+.game-footer {
+    height: 80px;
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.9);
+    border-top: 1px solid var(--color-border);
 }
 
 #gameCanvas {
@@ -35,55 +58,30 @@
     box-shadow: var(--shadow-lg);
 }
 
-/* HUD Overlay */
-.game-hud {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--spacing-md) var(--spacing-lg);
-    pointer-events: none;
-}
+/* ==========================================================================
+   Header HUD要素
+   ========================================================================== */
 
-.hud-left,
-.hud-center,
-.hud-right {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-}
-
-/* Gem counter */
-.gem-counter {
+.hud-gems,
+.hud-score,
+.hud-lives {
     display: flex;
     align-items: center;
     gap: var(--spacing-xs);
-    padding: var(--spacing-xs) var(--spacing-sm);
-    background: rgba(0, 0, 0, 0.6);
-    border-radius: var(--radius-md);
-    font-weight: 600;
 }
 
+/* Gem display */
 .gem-icon {
     font-size: 18px;
 }
 
 .gem-count {
     font-size: var(--font-size-lg);
+    font-weight: 600;
     color: #ffd700;
 }
 
 /* Score display */
-.score-display {
-    padding: var(--spacing-xs) var(--spacing-md);
-    background: rgba(0, 0, 0, 0.6);
-    border-radius: var(--radius-md);
-    font-weight: 600;
-}
-
 .score-label {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
@@ -92,35 +90,26 @@
 
 .score-value {
     font-size: var(--font-size-lg);
+    font-weight: 600;
     font-family: var(--font-mono);
 }
 
 /* Lives display */
-.lives-display {
-    display: flex;
-    gap: var(--spacing-xs);
-    padding: var(--spacing-xs) var(--spacing-sm);
-    background: rgba(0, 0, 0, 0.6);
-    border-radius: var(--radius-md);
-}
-
 .life-icon {
     font-size: 18px;
-    color: #f44336;
 }
 
 .life-icon.empty {
     opacity: 0.3;
 }
 
-/* Weapon panel - below canvas */
+/* ==========================================================================
+   Weapon Panel (Footer内)
+   ========================================================================== */
+
 .weapon-panel {
     display: flex;
     gap: var(--spacing-sm);
-    padding: var(--spacing-sm);
-    margin-top: var(--spacing-md);
-    background: rgba(0, 0, 0, 0.7);
-    border-radius: var(--radius-lg);
 }
 
 .weapon-slot {
@@ -237,17 +226,21 @@
     transition: width 0.3s ease;
 }
 
-/* Combo display */
+/* ==========================================================================
+   Combo Display (Main内のabsolute)
+   ========================================================================== */
+
 .combo-display {
     position: absolute;
-    top: 50%;
-    right: var(--spacing-xl);
-    transform: translateY(-50%);
+    top: 20px;
+    right: 20px;
     text-align: right;
     opacity: 0;
     transition: opacity 0.3s ease;
+    pointer-events: none;
 }
 
+.combo-display.active,
 .combo-display.visible {
     opacity: 1;
 }
@@ -270,13 +263,13 @@
     display: none;
 }
 
-/* Game over overlay */
+/* ==========================================================================
+   Game Overlays (position: fixed)
+   ========================================================================== */
+
 .game-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    position: fixed;
+    inset: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -285,8 +278,10 @@
     opacity: 0;
     visibility: hidden;
     transition: all 0.3s ease;
+    z-index: 1000;
 }
 
+.game-overlay.active,
 .game-overlay.visible {
     opacity: 1;
     visibility: visible;

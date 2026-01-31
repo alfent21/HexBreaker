@@ -300,6 +300,11 @@ export class ProjectFileSystem {
             // ゲーム用形式でシリアライズ
             const data = this.serialization.serializeStageForGame(stage);
 
+            // ブロック数チェック
+            if (!data.blocks || data.blocks.length === 0) {
+                this.dialogs.toast('ブロックがありません。ブロックレイヤーが表示されているか確認してください。', 'warning');
+            }
+
             // IndexedDBに保存（サイズ制限なし）
             await previewStorage.save(data);
 
