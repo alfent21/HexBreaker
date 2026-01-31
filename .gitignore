@@ -1,0 +1,15 @@
+# Images - don't upload to repository
+images/
+
+# Temp files
+*.tmp
+*~
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Windows temp
+NDH6SA~M

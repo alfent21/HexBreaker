@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Skill(sc:analyze)",
-      "Skill(sc:analyze:*)"
+      "Skill(sc:analyze:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfix: コード品質改善 - 重複コード削除とパフォーマンス最適化\n\n- Game.js: 重複変数宣言 \\(balls, paddle\\) を削除\n- Game.js: 重複 incrementCombo\\(\\) 呼び出しを削除\n- Game.js: デバッグ用ハードコード \\(gems = 50\\) を削除\n- index.html: 毎フレーム動的importを静的importに変更\n- Config.js: PROJECT_VERSION を 5.0 に修正\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)"
+    ],
+    "additionalDirectories": [
+      "e:\\サイドビジネス\\自作ツール類\\HexBreaker"
     ]
   }
 }
