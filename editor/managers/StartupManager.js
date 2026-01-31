@@ -130,10 +130,13 @@ export class StartupManager {
             this._showWizard();
         });
 
-        btnOpen?.addEventListener('click', () => {
+        btnOpen?.addEventListener('click', async () => {
             this._hideStartupDialog();
-            this.loadingFromStartup = true;
-            document.getElementById('file-input-project')?.click();
+            const success = await this.editor.projectFileSystem.openProject();
+            if (!success) {
+                // キャンセルまたは失敗時はダイアログを再表示
+                this._showStartupDialog();
+            }
         });
     }
 
