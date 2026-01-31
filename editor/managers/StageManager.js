@@ -15,6 +15,7 @@ import { CANVAS_CONFIG, STAGE_DEFAULTS } from '../core/Config.js';
  * @property {string} name - Stage name
  * @property {{width: number, height: number}} canvas - Canvas size
  * @property {string} gridSize - Grid size key ('small', 'medium', 'large')
+ * @property {Object|null} baseLayer - Base layer data (background)
  * @property {Array} layers - Layer data array
  * @property {Array} lines - Line data array
  * @property {Object} meta - Stage metadata
@@ -53,6 +54,7 @@ export class StageManager {
                 height: height || CANVAS_CONFIG.defaultHeight
             },
             gridSize: gridSize,
+            baseLayer: null,
             layers: [],
             lines: [],
             meta: {
@@ -160,9 +162,12 @@ export class StageManager {
         newStage.id = `stage_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
         newStage.name = `${original.name} (コピー)`;
 
+        // Get layers array (handle both object and array formats)
+        const layersArray = Array.isArray(newStage.layers) ? newStage.layers : [];
+
         // Regenerate layer IDs
         let nextLayerId = 1;
-        for (const layer of newStage.layers) {
+        for (const layer of layersArray) {
             layer.id = nextLayerId++;
         }
 
@@ -247,18 +252,24 @@ export class StageManager {
      * @returns {StageData[]}
      */
     serialize() {
-        return this.stages.map(stage => ({
-            ...stage,
-            layers: stage.layers.map(layer => {
-                if (layer.type === 'block' && layer.blocks instanceof Map) {
-                    return {
-                        ...layer,
-                        blocks: Array.from(layer.blocks.entries())
-                    };
-                }
-                return layer;
-            })
-        }));
+        return this.stages.map(stage => {
+            // Get layers array (handle both object and array formats)
+            const layersArray = Array.isArray(stage.layers) ? stage.layers : [];
+
+            return {
+                ...stage,
+                baseLayer: stage.baseLayer || null,
+                layers: layersArray.map(layer => {
+                    if (layer.type === 'block' && layer.blocks instanceof Map) {
+                        return {
+                            ...layer,
+                            blocks: Array.from(layer.blocks.entries())
+                        };
+                    }
+                    return layer;
+                })
+            };
+        });
     }
 
     /**
@@ -272,12 +283,28 @@ export class StageManager {
         // Use same format as export
         const gridSize = GRID_SIZES[stage.gridSize] || GRID_SIZES.medium;
 
+        // Get layers array (handle both object and array formats)
+        const layersArray = Array.isArray(stage.layers) ? stage.layers : [];
+
         // Filter valid background images
         const backgrounds = [];
-        for (const layer of stage.layers) {
+
+        // Add base layer first
+        if (stage.baseLayer) {
+            backgrounds.push({
+                imageData: stage.baseLayer.imageData,
+                backgroundColor: stage.baseLayer.backgroundColor,
+                width: stage.baseLayer.width,
+                height: stage.baseLayer.height,
+                zIndex: -1
+            });
+        }
+
+        // Add image layers
+        for (const layer of layersArray) {
             if (layer.type === 'image' && layer.visible && layer.imageData) {
                 backgrounds.push({
-                    imageData: layer.imageData, // base64 string
+                    imageData: layer.imageData,
                     zIndex: layer.zIndex
                 });
             }
@@ -285,11 +312,11 @@ export class StageManager {
 
         // Collect all blocks from visible block layers
         const blocks = [];
-        for (const layer of stage.layers) {
+        for (const layer of layersArray) {
             if (layer.type === 'block' && layer.visible) {
                 const blockData = layer.blocks instanceof Map
                     ? Array.from(layer.blocks.values())
-                    : layer.blocks.map(([key, val]) => val);
+                    : (Array.isArray(layer.blocks) ? layer.blocks.map(([key, val]) => val) : []);
                 blocks.push(...blockData);
             }
         }
@@ -304,6 +331,7 @@ export class StageManager {
                 height: gridSize.height,
                 verticalSpacing: gridSize.verticalSpacing
             },
+            baseLayer: stage.baseLayer,
             backgrounds,
             blocks,
             lines: stage.lines,
@@ -319,9 +347,13 @@ export class StageManager {
         this.stages = [];
 
         for (const stageData of data) {
+            // Get layers array (handle both object and array formats)
+            const layersData = Array.isArray(stageData.layers) ? stageData.layers : [];
+
             const stage = {
                 ...stageData,
-                layers: stageData.layers.map(layer => {
+                baseLayer: stageData.baseLayer || null,
+                layers: layersData.map(layer => {
                     if (layer.type === 'block' && Array.isArray(layer.blocks)) {
                         return {
                             ...layer,

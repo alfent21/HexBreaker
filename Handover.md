@@ -1,42 +1,76 @@
-# Handover - 2026-01-31
+# Handover - 2026-01-31 (Updated)
 
 プロジェクト「HexBreaker」の現状と次回作業の引継ぎ情報です。
 
 ## 現在の状態
-- **完了**: 起動フロー・ベースレイヤーシステムの設計、実装計画作成。
-- **完了**: `.gitignore` の追加（`images/` フォルダ除外）。
-- **進行中**: `LayerManager.js` へのベースレイヤー定義追加（TypeDefと定数は追加済み）。
 
-## 次回の作業 (ToDo)
-`plans/implementation_plan_20260131.md` に基づき実装を進めてください。
+### 完了した実装
 
-1. **[LayerManager.js]** 実装の続き
-   - `createBaseLayer`, `setBaseLayerImage`, `setBaseLayerColor` 等のメソッド実装
-   - `removeLayer`, `reorderLayer` でのベースレイヤー保護ガード処理
+1. **LayerManager.js** - ベースレイヤー対応
+   - `createBaseLayer(width, height, options)` - ベースレイヤー作成
+   - `setBaseLayerImage(image, imageData)` - 画像設定
+   - `setBaseLayerColor(color)` - 単色背景設定
+   - `getBaseLayer()` / `hasBaseLayer()` - 取得メソッド
+   - `updateBaseLayerFromFile(file)` - ファイルからの更新
+   - `removeLayer()` にベースレイヤー保護（id=0は削除不可）
+   - `serialize()` / `deserialize()` のベースレイヤー対応
+   - `serializeForStage()` / `loadFromStage()` のベースレイヤー対応
 
-2. **[Rendering]**
-   - `RenderSystem.js` でのベースレイヤー描画処理（単色対応）
+2. **RenderSystem.js** - ベースレイヤー描画
+   - `_drawBaseLayer()` メソッド追加
+   - `_renderMain()` でベースレイヤーを最初に描画
 
-3. **[UI/Dialog]**
-   - `startup-dialog.html`, `new-project-wizard.html` のテンプレート作成
-   - `StartupManager.js` の実装
-   - `index.html` への統合
+3. **StartupManager.js** - 新規作成
+   - 起動ダイアログ表示/非表示
+   - 新規プロジェクトウィザード（3ステップ）
+   - localStorage への自動保存/復元
 
-## 重要事項・コンテキスト
-- **ベースレイヤー**: 
-  - `id: 0` 固定。削除不可。最背面固定。
-  - 画像モードと単色モード（プリセット: 白/黒/グレー/ダークグレー）を持つ。
-  - サイズ変更は不可だが、同サイズであれば画像/色の差し替えは可能。
-- **背景色の透明**は「それより下がない」ため不要（削除済み）。
-- **起動フロー**:
-  - `localStorage` に前回のプロジェクト情報を保存し、次回起動時に自動復元する。
-  - 履歴がない場合は新規作成 or ファイル選択ダイアログを表示。
-- **参考リソース**:
-  - `Hexposed` の `DialogUI.js` やCSSがウィザードUIの参考になる。
+4. **index.html** - UI追加
+   - 起動ダイアログ HTML
+   - 新規プロジェクトウィザード HTML（3ステップ）
+   - プロジェクトファイル用 file input
 
-## 確認済みの意思決定
-- 最終プロジェクトの保存は一旦 `localStorage` で実装開始し、容量問題が出たら `IndexedDB` へ移行する。
-- `images/` はリポジトリ管理外（.gitignore済み）。
+5. **editor.css** - スタイル追加
+   - 起動ダイアログスタイル
+   - ウィザードモーダルスタイル
+   - ドロップゾーン、カード、サマリーパネル等
+
+6. **Editor.js** - 統合
+   - StartupManager の import と初期化
+   - `createNewProject(config)` - ウィザードからの新規作成
+   - `serializeProject()` / `loadProject(data)` - 保存/読み込み
+   - `_generatePresetLines(config)` - パドル軸/ミスライン自動生成
+   - `init()` を async に変更し起動フロー対応
+
+## 次回の作業（推奨）
+
+1. **動作テスト**
+   - `python -m http.server 8080` でサーバー起動
+   - `http://localhost:8080/index.html` にアクセス
+   - 起動ダイアログが表示されることを確認
+   - ウィザードで新規プロジェクト作成をテスト
+
+2. **追加機能（オプション）**
+   - レイヤーパネルでベースレイヤーの特別表示（削除ボタン非表示等）
+   - ベースレイヤーの画像/色変更UI
+
+## 重要事項
+
+- **ベースレイヤー**: id=0固定、削除不可、最背面固定
+- **背景色プリセット**: 白/黒/グレー/ダークグレー（透明は不要）
+- **localStorage**: 最終プロジェクトを自動保存（約4MB制限）
+
+## ファイル変更サマリー
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `editor/managers/LayerManager.js` | ベースレイヤー関連メソッド追加 |
+| `editor/managers/StartupManager.js` | **新規作成** |
+| `editor/systems/RenderSystem.js` | `_drawBaseLayer()` 追加 |
+| `editor/core/Editor.js` | StartupManager統合、新規プロジェクト作成 |
+| `index.html` | 起動ダイアログ・ウィザードHTML追加 |
+| `css/editor.css` | ダイアログ・ウィザードスタイル追加 |
 
 ---
 作成日時: 2026-01-31 12:15
+更新日時: 2026-01-31 (実装完了)

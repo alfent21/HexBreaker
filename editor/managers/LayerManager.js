@@ -43,10 +43,37 @@ import { ImageAnalyzer } from '../utils/ImageAnalyzer.js';
  * @property {number|null} sourceLayerId - Linked image layer ID for clipping
  */
 
+/**
+ * @typedef {Object} BaseLayer
+ * @property {number} id - Always 0 (reserved)
+ * @property {string} name - Layer name (editable)
+ * @property {'base'} type - Layer type
+ * @property {boolean} visible - Always true
+ * @property {number} zIndex - Always 0 (bottom)
+ * @property {number} width - Canvas width
+ * @property {number} height - Canvas height
+ * @property {HTMLImageElement|null} image - Image element (null for solid color)
+ * @property {string|null} imageData - Base64 dataURL (null for solid color)
+ * @property {string|null} backgroundColor - Solid color (#RRGGBB) or null for image
+ */
+
+/**
+ * Background color presets for base layer
+ */
+export const BG_COLOR_PRESETS = [
+    { name: '白', color: '#FFFFFF' },
+    { name: '黒', color: '#000000' },
+    { name: 'グレー', color: '#808080' },
+    { name: 'ダークグレー', color: '#333333' }
+];
+
 export class LayerManager {
     constructor() {
         /** @type {(ImageLayer|BlockLayer)[]} */
         this.layers = [];
+
+        /** @type {BaseLayer|null} */
+        this.baseLayer = null;
 
         /** @type {number} */
         this.nextId = 1;
@@ -118,6 +145,158 @@ export class LayerManager {
         this._emitChange();
 
         return layer;
+    }
+
+    // ========================================
+    // Base Layer Methods
+    // ========================================
+
+    /**
+     * Create a base layer (required, non-deletable bottom layer)
+     * @param {number} width - Canvas width
+     * @param {number} height - Canvas height
+     * @param {Object} [options] - Creation options
+     * @param {string} [options.name='ベース'] - Layer name
+     * @param {string} [options.backgroundColor] - Solid color (#RRGGBB)
+     * @param {HTMLImageElement} [options.image] - Image element
+     * @param {string} [options.imageData] - Base64 image data
+     * @returns {BaseLayer} The created base layer
+     */
+    createBaseLayer(width, height, options = {}) {
+        if (this.baseLayer) {
+            throw new Error('ベースレイヤーは既に存在します');
+        }
+
+        const {
+            name = 'ベース',
+            backgroundColor = null,
+            image = null,
+            imageData = null
+        } = options;
+
+        // Validate: must have either backgroundColor or image
+        if (!backgroundColor && !image) {
+            throw new Error('背景色または画像を指定してください');
+        }
+
+        this.baseLayer = {
+            id: 0,
+            name,
+            type: 'base',
+            visible: true,
+            zIndex: 0,
+            width,
+            height,
+            image: image || null,
+            imageData: imageData || null,
+            backgroundColor: backgroundColor || null
+        };
+
+        // Set game area size
+        this.gameAreaSize = { width, height };
+
+        this._emitChange();
+        return this.baseLayer;
+    }
+
+    /**
+     * Get the base layer
+     * @returns {BaseLayer|null}
+     */
+    getBaseLayer() {
+        return this.baseLayer;
+    }
+
+    /**
+     * Check if base layer exists
+     * @returns {boolean}
+     */
+    hasBaseLayer() {
+        return this.baseLayer !== null;
+    }
+
+    /**
+     * Set base layer image (must be same size)
+     * @param {HTMLImageElement} image - Image element
+     * @param {string} imageData - Base64 data URL
+     */
+    setBaseLayerImage(image, imageData) {
+        if (!this.baseLayer) {
+            throw new Error('ベースレイヤーが存在しません');
+        }
+
+        // Validate size
+        if (image.width !== this.baseLayer.width || image.height !== this.baseLayer.height) {
+            throw new Error(
+                `画像サイズが一致しません。` +
+                `期待: ${this.baseLayer.width}x${this.baseLayer.height}, ` +
+                `実際: ${image.width}x${image.height}`
+            );
+        }
+
+        this.baseLayer.image = image;
+        this.baseLayer.imageData = imageData;
+        this.baseLayer.backgroundColor = null;
+
+        this._emitChange();
+    }
+
+    /**
+     * Set base layer solid color
+     * @param {string} color - Color (#RRGGBB)
+     */
+    setBaseLayerColor(color) {
+        if (!this.baseLayer) {
+            throw new Error('ベースレイヤーが存在しません');
+        }
+
+        this.baseLayer.backgroundColor = color;
+        this.baseLayer.image = null;
+        this.baseLayer.imageData = null;
+
+        this._emitChange();
+    }
+
+    /**
+     * Update base layer from file (async, validates size)
+     * @param {File} file - Image file
+     * @returns {Promise<void>}
+     */
+    updateBaseLayerFromFile(file) {
+        return new Promise((resolve, reject) => {
+            if (!this.baseLayer) {
+                reject(new Error('ベースレイヤーが存在しません'));
+                return;
+            }
+
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                const imageData = e.target.result;
+                const img = new Image();
+
+                img.onload = () => {
+                    try {
+                        this.setBaseLayerImage(img, imageData);
+                        resolve();
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+
+                img.onerror = () => {
+                    reject(new Error('画像の読み込みに失敗しました'));
+                };
+
+                img.src = imageData;
+            };
+
+            reader.onerror = () => {
+                reject(new Error('ファイルの読み込みに失敗しました'));
+            };
+
+            reader.readAsDataURL(file);
+        });
     }
 
     /**
@@ -224,10 +403,17 @@ export class LayerManager {
     /**
      * Remove layer by ID
      * @param {number} id - Layer ID
+     * @returns {boolean} True if removed, false if protected or not found
      */
     removeLayer(id) {
+        // Protect base layer (id === 0)
+        if (id === 0) {
+            console.warn('ベースレイヤーは削除できません');
+            return false;
+        }
+
         const index = this.layers.findIndex(l => l.id === id);
-        if (index === -1) return;
+        if (index === -1) return false;
 
         this.layers.splice(index, 1);
         this._updateZIndices();
@@ -239,6 +425,7 @@ export class LayerManager {
 
         this.checkedLayerIds.delete(id);
         this._emitChange();
+        return true;
     }
 
     /**
@@ -378,10 +565,29 @@ export class LayerManager {
 
     /**
      * Serialize layers for saving
-     * @returns {Object[]}
+     * @returns {Object}
      */
     serialize() {
-        return this.layers.map(layer => {
+        const result = {
+            baseLayer: null,
+            layers: []
+        };
+
+        // Serialize base layer
+        if (this.baseLayer) {
+            result.baseLayer = {
+                id: this.baseLayer.id,
+                name: this.baseLayer.name,
+                type: 'base',
+                width: this.baseLayer.width,
+                height: this.baseLayer.height,
+                imageData: this.baseLayer.imageData,
+                backgroundColor: this.baseLayer.backgroundColor
+            };
+        }
+
+        // Serialize regular layers
+        result.layers = this.layers.map(layer => {
             if (layer.type === 'image') {
                 return {
                     id: layer.id,
@@ -403,21 +609,74 @@ export class LayerManager {
                 };
             }
         });
+
+        return result;
     }
 
     /**
      * Deserialize layers from saved data
-     * @param {Object[]} data - Serialized layer data
+     * @param {Object} data - Serialized layer data (with baseLayer and layers)
      * @returns {Promise<void>}
      */
     async deserialize(data) {
         this.layers = [];
+        this.baseLayer = null;
         this.nextId = 1;
         this.activeLayerId = null;
         this.gameAreaSize = null;
         this.checkedLayerIds.clear();
 
-        for (const layerData of data) {
+        // Handle both old format (array) and new format (object with baseLayer)
+        const layersData = Array.isArray(data) ? data : (data.layers || []);
+        const baseLayerData = Array.isArray(data) ? null : data.baseLayer;
+
+        // Restore base layer first
+        if (baseLayerData) {
+            if (baseLayerData.imageData) {
+                // Load base layer image
+                const img = new Image();
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = baseLayerData.imageData;
+                });
+
+                this.baseLayer = {
+                    id: 0,
+                    name: baseLayerData.name || 'ベース',
+                    type: 'base',
+                    visible: true,
+                    zIndex: 0,
+                    width: baseLayerData.width,
+                    height: baseLayerData.height,
+                    image: img,
+                    imageData: baseLayerData.imageData,
+                    backgroundColor: null
+                };
+            } else {
+                // Solid color base layer
+                this.baseLayer = {
+                    id: 0,
+                    name: baseLayerData.name || 'ベース',
+                    type: 'base',
+                    visible: true,
+                    zIndex: 0,
+                    width: baseLayerData.width,
+                    height: baseLayerData.height,
+                    image: null,
+                    imageData: null,
+                    backgroundColor: baseLayerData.backgroundColor || '#FFFFFF'
+                };
+            }
+
+            this.gameAreaSize = {
+                width: baseLayerData.width,
+                height: baseLayerData.height
+            };
+        }
+
+        // Restore regular layers
+        for (const layerData of layersData) {
             if (layerData.type === 'image') {
                 // Load image from base64
                 const img = new Image();
@@ -427,7 +686,7 @@ export class LayerManager {
                     img.src = layerData.imageData;
                 });
 
-                // Set game area from first image
+                // Set game area from first image (fallback for old format)
                 if (!this.gameAreaSize) {
                     this.gameAreaSize = { width: img.width, height: img.height };
                 }
@@ -441,7 +700,7 @@ export class LayerManager {
                     visible: layerData.visible,
                     zIndex: layerData.zIndex
                 });
-            } else {
+            } else if (layerData.type === 'block') {
                 this.layers.push({
                     id: layerData.id,
                     name: layerData.name,
@@ -468,10 +727,11 @@ export class LayerManager {
     }
 
     /**
-     * Clear all layers
+     * Clear all layers (including base layer)
      */
     clear() {
         this.layers = [];
+        this.baseLayer = null;
         this.nextId = 1;
         this.activeLayerId = null;
         this.gameAreaSize = null;
@@ -501,14 +761,47 @@ export class LayerManager {
 
     /**
      * Load layers from stage data
-     * @param {Object[]} stageLayers - Layer data from stage
+     * @param {Object} stageData - Stage data (with baseLayer and layers, or just layers array)
      */
-    loadFromStage(stageLayers) {
+    loadFromStage(stageData) {
         this.layers = [];
+        this.baseLayer = null;
         this.nextId = 1;
         this.activeLayerId = null;
         this.checkedLayerIds.clear();
 
+        // Handle both old format (array) and new format (object with baseLayer)
+        const stageLayers = Array.isArray(stageData) ? stageData : (stageData.layers || []);
+        const baseLayerData = Array.isArray(stageData) ? null : stageData.baseLayer;
+
+        // Load base layer
+        if (baseLayerData) {
+            let img = baseLayerData.image;
+            if (!img && baseLayerData.imageData) {
+                img = new Image();
+                img.src = baseLayerData.imageData;
+            }
+
+            this.baseLayer = {
+                id: 0,
+                name: baseLayerData.name || 'ベース',
+                type: 'base',
+                visible: true,
+                zIndex: 0,
+                width: baseLayerData.width,
+                height: baseLayerData.height,
+                image: img,
+                imageData: baseLayerData.imageData || null,
+                backgroundColor: baseLayerData.backgroundColor || null
+            };
+
+            this.gameAreaSize = {
+                width: baseLayerData.width,
+                height: baseLayerData.height
+            };
+        }
+
+        // Load regular layers
         for (const layerData of stageLayers) {
             if (layerData.type === 'image') {
                 // If image element doesn't exist, create placeholder
@@ -527,6 +820,11 @@ export class LayerManager {
                     visible: layerData.visible !== false,
                     zIndex: layerData.zIndex || 0
                 });
+
+                // Fallback: set game area from first image (old format)
+                if (!this.gameAreaSize && img) {
+                    this.gameAreaSize = { width: img.width, height: img.height };
+                }
             } else if (layerData.type === 'block') {
                 // Convert array blocks to Map if necessary
                 let blocks = layerData.blocks;
@@ -567,10 +865,29 @@ export class LayerManager {
 
     /**
      * Serialize layers for stage storage
-     * @returns {Object[]}
+     * @returns {Object}
      */
     serializeForStage() {
-        return this.layers.map(layer => {
+        const result = {
+            baseLayer: null,
+            layers: []
+        };
+
+        // Serialize base layer
+        if (this.baseLayer) {
+            result.baseLayer = {
+                id: this.baseLayer.id,
+                name: this.baseLayer.name,
+                type: 'base',
+                width: this.baseLayer.width,
+                height: this.baseLayer.height,
+                imageData: this.baseLayer.imageData,
+                backgroundColor: this.baseLayer.backgroundColor
+            };
+        }
+
+        // Serialize regular layers
+        result.layers = this.layers.map(layer => {
             if (layer.type === 'image') {
                 return {
                     id: layer.id,
@@ -594,6 +911,8 @@ export class LayerManager {
                 };
             }
         });
+
+        return result;
     }
 
     /**

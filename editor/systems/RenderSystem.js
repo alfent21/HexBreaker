@@ -148,7 +148,15 @@ export class RenderSystem {
         ctx.translate(this.offsetX, this.offsetY);
         ctx.scale(this.scale, this.scale);
 
-        // Draw layers
+        // Draw base layer first (always at bottom)
+        if (this.layerManager) {
+            const baseLayer = this.layerManager.getBaseLayer();
+            if (baseLayer) {
+                this._drawBaseLayer(ctx, baseLayer);
+            }
+        }
+
+        // Draw regular layers
         if (this.layerManager) {
             const layers = this.layerManager.getVisibleLayers();
             for (const layer of layers) {
@@ -233,6 +241,21 @@ export class RenderSystem {
         }
 
         ctx.restore();
+    }
+
+    /**
+     * Draw base layer (solid color or image)
+     * @private
+     */
+    _drawBaseLayer(ctx, baseLayer) {
+        if (baseLayer.backgroundColor) {
+            // Draw solid color background
+            ctx.fillStyle = baseLayer.backgroundColor;
+            ctx.fillRect(0, 0, baseLayer.width, baseLayer.height);
+        } else if (baseLayer.image) {
+            // Draw image background
+            ctx.drawImage(baseLayer.image, 0, 0);
+        }
     }
 
     /**

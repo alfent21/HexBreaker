@@ -452,19 +452,281 @@
         <!-- Items populated dynamically -->
     </div>
 
+    <!-- Startup Dialog -->
+    <div class="modal-overlay" id="startup-dialog">
+        <div class="modal startup-modal">
+            <div class="startup-header">
+                <h1 class="startup-title">HexBreaker Editor</h1>
+                <p class="startup-subtitle">ヘックスグリッド ブロック崩しエディター</p>
+            </div>
+            <div class="startup-buttons">
+                <button class="startup-btn startup-btn--primary" id="btn-startup-new">
+                    <i class="fas fa-plus"></i>
+                    <span>新規プロジェクト</span>
+                </button>
+                <button class="startup-btn startup-btn--secondary" id="btn-startup-open">
+                    <i class="fas fa-folder-open"></i>
+                    <span>プロジェクトを開く</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Project Wizard -->
+    <div class="modal-overlay hidden" id="new-project-wizard">
+        <div class="modal wizard-modal">
+            <div class="wizard-header">
+                <span class="modal-title">新規プロジェクト作成</span>
+                <div class="wizard-steps">
+                    <div class="step-indicator active" data-step="1">1</div>
+                    <div class="step-connector"></div>
+                    <div class="step-indicator" data-step="2">2</div>
+                    <div class="step-connector"></div>
+                    <div class="step-indicator" data-step="3">3</div>
+                </div>
+            </div>
+
+            <!-- Step 1: Base Layer -->
+            <div class="wizard-step" id="wizard-step-1">
+                <div class="wizard-step-title">ベースレイヤーの設定</div>
+                <div class="wizard-step-desc">背景画像または単色を選択してください</div>
+
+                <div class="wizard-content">
+                    <!-- Image Drop Zone -->
+                    <div class="drop-zone" id="wizard-drop-zone">
+                        <div class="drop-zone-content">
+                            <i class="fas fa-image drop-zone-icon"></i>
+                            <p>画像をドラッグ＆ドロップ</p>
+                            <p class="drop-zone-hint">または</p>
+                            <button class="btn btn--secondary" id="btn-wizard-select-image">
+                                ファイルを選択
+                            </button>
+                        </div>
+                    </div>
+                    <input type="file" id="file-input-wizard-image" accept="image/*" style="display:none">
+
+                    <!-- Image Preview -->
+                    <div class="image-preview-container hidden" id="wizard-image-preview">
+                        <img id="wizard-preview-img" class="preview-img" alt="Preview">
+                        <div class="preview-info">
+                            <span id="wizard-image-name">image.png</span>
+                            <span id="wizard-image-size">1280 x 720 px</span>
+                        </div>
+                        <button class="btn btn--icon btn--small" id="btn-wizard-clear-image">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+
+                    <div class="form-divider">
+                        <span>または</span>
+                    </div>
+
+                    <!-- Solid Color Mode -->
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="wizard-solid-color-mode">
+                        <span>単色背景を使用</span>
+                    </label>
+
+                    <!-- Color Presets -->
+                    <div class="wizard-panel hidden" id="wizard-color-panel">
+                        <label class="label">背景色</label>
+                        <div class="color-preset-grid">
+                            <button class="bg-color-preset" data-color="#FFFFFF" style="background:#FFFFFF" title="白"></button>
+                            <button class="bg-color-preset" data-color="#000000" style="background:#000000" title="黒"></button>
+                            <button class="bg-color-preset selected" data-color="#808080" style="background:#808080" title="グレー"></button>
+                            <button class="bg-color-preset" data-color="#333333" style="background:#333333" title="ダークグレー"></button>
+                        </div>
+                    </div>
+
+                    <!-- Size Panel -->
+                    <div class="wizard-panel hidden" id="wizard-size-panel">
+                        <label class="label">サイズ</label>
+                        <div class="size-preset-buttons">
+                            <button class="size-preset-btn" data-width="1280" data-height="720">1280×720</button>
+                            <button class="size-preset-btn" data-width="1920" data-height="1080">1920×1080</button>
+                            <button class="size-preset-btn" data-width="800" data-height="600">800×600</button>
+                        </div>
+                        <div class="size-inputs">
+                            <input type="number" class="input" id="wizard-width" value="1280" min="100" max="4096">
+                            <span>×</span>
+                            <input type="number" class="input" id="wizard-height" value="720" min="100" max="4096">
+                            <span>px</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="wizard-footer">
+                    <button class="btn btn--secondary" id="btn-wizard-cancel-1">キャンセル</button>
+                    <button class="btn btn--primary" id="btn-wizard-step1-next" disabled>次へ</button>
+                </div>
+            </div>
+
+            <!-- Step 2: Paddle Area -->
+            <div class="wizard-step hidden" id="wizard-step-2">
+                <div class="wizard-step-title">パドル領域の設定</div>
+                <div class="wizard-step-desc">追加領域とプリセットを設定してください</div>
+
+                <div class="wizard-content">
+                    <!-- Extra Area Mode -->
+                    <label class="label">追加領域</label>
+                    <div class="option-cards">
+                        <div class="extra-area-card selected" data-mode="none">
+                            <i class="fas fa-square"></i>
+                            <span>なし</span>
+                            <small>画像サイズのまま</small>
+                        </div>
+                        <div class="extra-area-card" data-mode="external">
+                            <i class="fas fa-expand"></i>
+                            <span>追加領域あり</span>
+                            <small>パドル用スペースを追加</small>
+                        </div>
+                    </div>
+
+                    <!-- Extra Area Settings -->
+                    <div class="wizard-panel hidden" id="wizard-extra-area-settings">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="label">位置</label>
+                                <select class="select" id="wizard-extra-position">
+                                    <option value="bottom">下</option>
+                                    <option value="top">上</option>
+                                    <option value="left">左</option>
+                                    <option value="right">右</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="label">サイズ (px)</label>
+                                <input type="number" class="input" id="wizard-extra-size" value="100" min="50" max="500">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-divider"></div>
+
+                    <!-- Paddle Axis Preset -->
+                    <label class="label">パドル軸の自動生成</label>
+                    <div class="preset-cards">
+                        <div class="paddle-preset-card selected" data-preset="auto">
+                            <i class="fas fa-magic"></i>
+                            <span>自動</span>
+                        </div>
+                        <div class="paddle-preset-card" data-preset="none">
+                            <i class="fas fa-ban"></i>
+                            <span>なし</span>
+                        </div>
+                    </div>
+
+                    <!-- Missline Preset -->
+                    <label class="label">ミスラインの自動生成</label>
+                    <div class="preset-cards">
+                        <div class="missline-preset-card selected" data-preset="auto">
+                            <i class="fas fa-magic"></i>
+                            <span>自動</span>
+                        </div>
+                        <div class="missline-preset-card" data-preset="none">
+                            <i class="fas fa-ban"></i>
+                            <span>なし</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="wizard-footer">
+                    <button class="btn btn--secondary" id="btn-wizard-cancel-2">キャンセル</button>
+                    <div class="wizard-footer-right">
+                        <button class="btn btn--secondary" id="btn-wizard-step2-back">戻る</button>
+                        <button class="btn btn--primary" id="btn-wizard-step2-next">次へ</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Grid Size & Confirm -->
+            <div class="wizard-step hidden" id="wizard-step-3">
+                <div class="wizard-step-title">グリッドサイズと確認</div>
+                <div class="wizard-step-desc">設定を確認して作成してください</div>
+
+                <div class="wizard-content">
+                    <!-- Grid Size -->
+                    <label class="label">グリッドサイズ（ブロック密度）</label>
+                    <div class="grid-size-cards">
+                        <div class="grid-size-card" data-size="small">
+                            <div class="grid-preview grid-preview--small"></div>
+                            <span>小</span>
+                            <small>10px - 細かい</small>
+                        </div>
+                        <div class="grid-size-card selected" data-size="medium">
+                            <div class="grid-preview grid-preview--medium"></div>
+                            <span>中</span>
+                            <small>30px - 標準</small>
+                        </div>
+                        <div class="grid-size-card" data-size="large">
+                            <div class="grid-preview grid-preview--large"></div>
+                            <span>大</span>
+                            <small>50px - 大きい</small>
+                        </div>
+                    </div>
+                    <p class="warning-text">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        グリッドサイズは作成後に変更できません
+                    </p>
+
+                    <div class="form-divider"></div>
+
+                    <!-- Summary -->
+                    <div class="summary-panel">
+                        <div class="summary-title">設定サマリー</div>
+                        <div class="summary-row">
+                            <span class="summary-label">ベースレイヤー:</span>
+                            <span class="summary-value" id="summary-base-layer">-</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">ベースサイズ:</span>
+                            <span class="summary-value" id="summary-base-size">-</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">追加領域:</span>
+                            <span class="summary-value" id="summary-extra-area">-</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">キャンバスサイズ:</span>
+                            <span class="summary-value" id="summary-canvas-size">-</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">グリッドサイズ:</span>
+                            <span class="summary-value" id="summary-grid-size">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="wizard-footer">
+                    <button class="btn btn--secondary" id="btn-wizard-cancel-3">キャンセル</button>
+                    <div class="wizard-footer-right">
+                        <button class="btn btn--secondary" id="btn-wizard-step3-back">戻る</button>
+                        <button class="btn btn--primary" id="btn-wizard-create">
+                            <i class="fas fa-check"></i>
+                            作成
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- File input for project loading -->
+    <input type="file" id="file-input-project" accept=".hbp,.json" style="display:none">
+
     <!-- Scripts -->
     <script type="module">
-        import { editor } from './editor/core/Editor.js?v=2';
-        import { UIController } from './editor/ui/UIController.js?v=2';
+        import { editor } from './editor/core/Editor.js?v=3';
+        import { UIController } from './editor/ui/UIController.js?v=3';
         import { pixelToHex } from './shared/HexMath.js';
 
         // Initialize on DOM ready
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             const mainCanvas = document.getElementById('mainCanvas');
             const overlayCanvas = document.getElementById('overlayCanvas');
 
-            // Initialize editor
-            editor.init(mainCanvas, overlayCanvas);
+            // Initialize editor (async - handles startup flow)
+            await editor.init(mainCanvas, overlayCanvas);
 
             // Initialize UI controller
             const ui = new UIController(editor);

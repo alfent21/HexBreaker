@@ -139,6 +139,17 @@ export class UIController {
         this.elements.openBtn?.addEventListener('click', () => this._openProject());
         this.elements.saveBtn?.addEventListener('click', () => this._saveProject());
 
+        // Dropdown menu items
+        document.getElementById('menu-new')?.addEventListener('click', () => this.editor.newProject());
+        document.getElementById('menu-open')?.addEventListener('click', () => this._openProject());
+        document.getElementById('menu-save')?.addEventListener('click', () => this._saveProject());
+        document.getElementById('menu-export')?.addEventListener('click', () => this._exportStage());
+        document.getElementById('menu-undo')?.addEventListener('click', () => this.editor.undo?.());
+        document.getElementById('menu-redo')?.addEventListener('click', () => this.editor.redo?.());
+        document.getElementById('menu-toggle-grid')?.addEventListener('click', () => this.editor.toggleGrid());
+        document.getElementById('menu-toggle-lines')?.addEventListener('click', () => this.editor.toggleLines());
+        document.getElementById('menu-reset-view')?.addEventListener('click', () => this.editor.resetView());
+
         this.elements.gridToggle?.addEventListener('change', (e) => {
             this.editor.renderSystem.showGrid = e.target.checked;
             this.editor.render();
@@ -502,6 +513,11 @@ export class UIController {
      */
     _saveProject() {
         const data = this.editor.getProjectData();
+        if (!data) {
+            this._addMessage('warning', '保存するプロジェクトがありません。新規作成してください。');
+            return;
+        }
+
         const json = JSON.stringify(data, null, 2);
         const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -515,6 +531,34 @@ export class UIController {
         this.editor.isDirty = false;
 
         this._addMessage('info', 'プロジェクトを保存しました');
+    }
+
+    /**
+     * Export current stage as JSON
+     * @private
+     */
+    _exportStage() {
+        try {
+            const data = this.editor.exportCurrentStageData();
+            if (!data) {
+                this._addMessage('warning', 'エクスポートするステージがありません');
+                return;
+            }
+
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${data.stageName || 'stage'}.json`;
+            a.click();
+
+            URL.revokeObjectURL(url);
+            this._addMessage('info', 'ステージをエクスポートしました');
+        } catch (e) {
+            this._addMessage('error', `エクスポート失敗: ${e.message}`);
+        }
     }
 
     /**

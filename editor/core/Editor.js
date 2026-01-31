@@ -14,6 +14,7 @@ import { LayerManager } from '../managers/LayerManager.js';
 import { BlockManager } from '../managers/BlockManager.js';
 import { LineManager } from '../managers/LineManager.js';
 import { StageManager } from '../managers/StageManager.js';
+import { StartupManager } from '../managers/StartupManager.js';
 import { RenderSystem } from '../systems/RenderSystem.js';
 
 export class Editor {
@@ -32,10 +33,14 @@ export class Editor {
         this.renderSystem = null;
         this.events = null;
 
+        // Startup Manager
+        this.startupManager = new StartupManager(this);
+
         // State
         this.currentTool = TOOLS.BRUSH;
         this.projectName = 'Untitled Project';
         this.isDirty = false;
+        this.isInitialized = false;
 
         // Event emitter
         this._eventHandlers = {};
@@ -49,7 +54,7 @@ export class Editor {
      * @param {HTMLCanvasElement} mainCanvas
      * @param {HTMLCanvasElement} overlayCanvas
      */
-    init(mainCanvas, overlayCanvas) {
+    async init(mainCanvas, overlayCanvas) {
         this.mainCanvas = mainCanvas;
         this.overlayCanvas = overlayCanvas;
 
@@ -62,13 +67,18 @@ export class Editor {
         // Initialize events
         this.events = new Events(this);
 
-        // Create default stage
-        this.createStage({
-            name: 'Stage 1',
-            width: CANVAS_CONFIG.defaultWidth,
-            height: CANVAS_CONFIG.defaultHeight,
-            gridSize: 'medium'
-        });
+        // Setup startup manager
+        this.startupManager.setup();
+
+        // Check startup flow (restore last project or show dialog)
+        const restored = await this.startupManager.checkStartup();
+
+        if (!restored) {
+            // No project restored - startup dialog is shown
+            // Don't create default stage, wait for user action
+        }
+
+        this.isInitialized = true;
 
         // Initial render
         this.render();
@@ -216,8 +226,11 @@ export class Editor {
             this.renderSystem.setGridSize(stage.gridSize);
         }
 
-        // Load layers
-        this.layerManager.loadFromStage(stage.layers);
+        // Load layers (pass object with baseLayer and layers)
+        this.layerManager.loadFromStage({
+            baseLayer: stage.baseLayer,
+            layers: stage.layers
+        });
 
         // Load lines
         this.lineManager.loadFromArray(stage.lines);
@@ -237,7 +250,9 @@ export class Editor {
         const stage = this.getCurrentStage();
         if (!stage) return;
 
-        stage.layers = this.layerManager.serializeForStage();
+        const serialized = this.layerManager.serializeForStage();
+        stage.baseLayer = serialized.baseLayer;
+        stage.layers = serialized.layers;
     }
 
     /**
@@ -363,7 +378,7 @@ export class Editor {
     }
 
     /**
-     * Create a new project
+     * Create a new project (legacy - shows dialog)
      */
     newProject() {
         if (this.isDirty) {
@@ -389,10 +404,242 @@ export class Editor {
     }
 
     /**
-     * Get project data for saving (v5.0 format)
+     * Create a new project from wizard configuration
+     * @param {Object} config - Project configuration from wizard
+     */
+    createNewProject(config) {
+        this.stageManager.clear();
+        this.projectName = 'Untitled Project';
+        this.isDirty = false;
+
+        // Create base layer configuration
+        const baseLayerOptions = {
+            name: 'ベース',
+            backgroundColor: config.baseLayer.backgroundColor,
+            image: null,
+            imageData: config.baseLayer.imageData
+        };
+
+        // If image data provided, load image
+        if (config.baseLayer.imageData) {
+            const img = new Image();
+            img.src = config.baseLayer.imageData;
+            baseLayerOptions.image = img;
+            baseLayerOptions.backgroundColor = null;
+        }
+
+        // Create stage with base layer
+        const stage = this.stageManager.createStage({
+            name: 'Stage 1',
+            width: config.canvasWidth,
+            height: config.canvasHeight,
+            gridSize: config.gridSize,
+            gameArea: {
+                width: config.gameAreaWidth,
+                height: config.gameAreaHeight,
+                offset: config.gameAreaOffset
+            }
+        });
+
+        // Create base layer
+        this.layerManager.createBaseLayer(
+            config.baseLayer.width,
+            config.baseLayer.height,
+            baseLayerOptions
+        );
+
+        // Create default block layer
+        const blockLayer = this.layerManager.addBlockLayer('Block Layer 1');
+
+        // Generate preset lines if configured
+        if (config.presets) {
+            this._generatePresetLines(config);
+        }
+
+        // Sync layers and lines to stage FIRST (before loading stage data)
+        this._syncLayersToStage();
+        this._syncLinesToStage();
+
+        // Now set up render system for the new stage
+        if (this.renderSystem) {
+            this.renderSystem.setSize(config.canvasWidth, config.canvasHeight);
+            this.renderSystem.setGridSize(config.gridSize);
+        }
+
+        // Save to localStorage
+        this.startupManager.saveToLocalStorage();
+
+        this.emit('projectChanged', this.projectName);
+        this.emit('canvasSizeChanged', { width: config.canvasWidth, height: config.canvasHeight });
+        this.emit('message', { type: 'info', text: '新規プロジェクトを作成しました' });
+    }
+
+    /**
+     * Generate preset lines based on configuration
+     * @private
+     * @param {Object} config
+     */
+    _generatePresetLines(config) {
+        const { canvasWidth, canvasHeight, extraArea, presets } = config;
+
+        // Paddle axis
+        if (presets.paddleAxis === 'auto' && extraArea) {
+            const pos = extraArea.position;
+            const size = extraArea.size;
+            let points = [];
+
+            switch (pos) {
+                case 'bottom':
+                    points = [
+                        { x: 0, y: canvasHeight - size / 2 },
+                        { x: canvasWidth, y: canvasHeight - size / 2 }
+                    ];
+                    break;
+                case 'top':
+                    points = [
+                        { x: 0, y: size / 2 },
+                        { x: canvasWidth, y: size / 2 }
+                    ];
+                    break;
+                case 'left':
+                    points = [
+                        { x: size / 2, y: 0 },
+                        { x: size / 2, y: canvasHeight }
+                    ];
+                    break;
+                case 'right':
+                    points = [
+                        { x: canvasWidth - size / 2, y: 0 },
+                        { x: canvasWidth - size / 2, y: canvasHeight }
+                    ];
+                    break;
+            }
+
+            if (points.length > 0) {
+                this.lineManager.addLine({
+                    type: 'paddle',
+                    points,
+                    color: '#00FF00',
+                    thickness: 3,
+                    opacity: 1
+                });
+            }
+        }
+
+        // Miss line
+        if (presets.missLine === 'auto') {
+            let points = [];
+
+            if (extraArea) {
+                const pos = extraArea.position;
+                switch (pos) {
+                    case 'bottom':
+                        points = [
+                            { x: 0, y: canvasHeight },
+                            { x: canvasWidth, y: canvasHeight }
+                        ];
+                        break;
+                    case 'top':
+                        points = [
+                            { x: 0, y: 0 },
+                            { x: canvasWidth, y: 0 }
+                        ];
+                        break;
+                    case 'left':
+                        points = [
+                            { x: 0, y: 0 },
+                            { x: 0, y: canvasHeight }
+                        ];
+                        break;
+                    case 'right':
+                        points = [
+                            { x: canvasWidth, y: 0 },
+                            { x: canvasWidth, y: canvasHeight }
+                        ];
+                        break;
+                }
+            } else {
+                // Default: bottom edge
+                points = [
+                    { x: 0, y: canvasHeight },
+                    { x: canvasWidth, y: canvasHeight }
+                ];
+            }
+
+            if (points.length > 0) {
+                this.lineManager.addLine({
+                    type: 'missline',
+                    points,
+                    color: '#FF0000',
+                    thickness: 3,
+                    opacity: 1
+                });
+            }
+        }
+    }
+
+    /**
+     * Serialize entire project for saving
      * @returns {Object}
      */
+    serializeProject() {
+        // Sync current state to stage
+        this._syncLayersToStage();
+        this._syncLinesToStage();
+
+        // Note: baseLayer is now stored within each stage, not at project level
+        return {
+            version: '5.0',
+            projectName: this.projectName,
+            stages: this.stageManager.serialize()
+        };
+    }
+
+    /**
+     * Load project from serialized data
+     * @param {Object} data
+     */
+    async loadProject(data) {
+        if (!data.version) {
+            throw new Error('無効なプロジェクトファイルです');
+        }
+
+        this.projectName = data.projectName || 'Untitled Project';
+
+        // Clear current state
+        this.stageManager.clear();
+        this.layerManager.clear();
+        this.lineManager.clear();
+
+        // Restore stages (includes baseLayer for each stage)
+        // Note: deserialize calls setCurrentStage which triggers _loadStageData
+        // which restores the baseLayer and layers to layerManager
+        if (data.stages) {
+            await this.stageManager.deserialize(data.stages);
+        }
+
+        this.isDirty = false;
+        this.render();
+
+        this.emit('projectChanged', this.projectName);
+        this.emit('message', { type: 'info', text: `プロジェクトを読み込みました: ${this.projectName}` });
+    }
+
+    /**
+     * Get project data for saving (v5.0 format)
+     * @returns {Object|null}
+     */
     getProjectData() {
+        // Check if there's anything to save
+        if (!this.stageManager || this.stageManager.stages.length === 0) {
+            console.warn('保存するステージがありません');
+            return null;
+        }
+
+        // Sync current state to stage before serializing
+        this._syncLayersToStage();
+        this._syncLinesToStage();
+
         return {
             version: '5.0',
             projectName: this.projectName,
@@ -412,7 +659,12 @@ export class Editor {
 
         this.projectName = data.projectName || 'Untitled Project';
 
-        // Load stages
+        // Clear current state
+        this.stageManager.clear();
+        this.layerManager.clear();
+        this.lineManager.clear();
+
+        // Load stages (includes baseLayer for each stage)
         if (data.stages) {
             await this.stageManager.deserialize(data.stages);
         }
@@ -436,20 +688,36 @@ export class Editor {
 
         const gridSize = GRID_SIZES[stage.gridSize];
 
+        // Get layers array (handle both object and array formats)
+        const layersArray = Array.isArray(stage.layers) ? stage.layers : [];
+
         // Collect all blocks from visible block layers
         const blocks = [];
-        for (const layer of stage.layers) {
+        for (const layer of layersArray) {
             if (layer.type === 'block' && layer.visible) {
                 const blockData = layer.blocks instanceof Map
                     ? Array.from(layer.blocks.values())
-                    : layer.blocks.map(([key, val]) => val);
+                    : (Array.isArray(layer.blocks) ? layer.blocks.map(([key, val]) => val) : []);
                 blocks.push(...blockData);
             }
         }
 
         // Collect background images
         const backgrounds = [];
-        for (const layer of stage.layers) {
+
+        // Add base layer background first (if exists)
+        if (stage.baseLayer) {
+            backgrounds.push({
+                imageData: stage.baseLayer.imageData,
+                backgroundColor: stage.baseLayer.backgroundColor,
+                width: stage.baseLayer.width,
+                height: stage.baseLayer.height,
+                zIndex: -1  // Always at bottom
+            });
+        }
+
+        // Add image layers
+        for (const layer of layersArray) {
             if (layer.type === 'image' && layer.visible) {
                 backgrounds.push({
                     imageData: layer.imageData,
@@ -468,6 +736,7 @@ export class Editor {
                 height: gridSize.height,
                 verticalSpacing: gridSize.verticalSpacing
             },
+            baseLayer: stage.baseLayer,
             backgrounds,
             blocks,
             lines: stage.lines,
@@ -547,7 +816,22 @@ export class Editor {
     previewStage() {
         try {
             const stageData = this.stageManager.serializeStage();
-            localStorage.setItem('hexbreaker_preview_stage', JSON.stringify(stageData));
+            const json = JSON.stringify(stageData);
+
+            // Check size and warn if too large
+            const sizeMB = json.length / (1024 * 1024);
+            if (sizeMB > 4) {
+                throw new Error(`データが大きすぎます (${sizeMB.toFixed(1)}MB)。画像サイズを縮小してください。`);
+            }
+
+            // Clear old preview data first
+            try {
+                localStorage.removeItem('hexbreaker_preview_stage');
+            } catch (e) {
+                // Ignore
+            }
+
+            localStorage.setItem('hexbreaker_preview_stage', json);
             const win = window.open('game_index.html', '_blank');
             if (!win) {
                 throw new Error('ポップアップがブロックされました。ブラウザの設定を確認してください。');
