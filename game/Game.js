@@ -70,12 +70,52 @@ export class Game {
         this.canvasHeight = canvas.height;
         this.gridSize = GRID_SIZES.medium;
 
+        // Background images
+        this.backgroundImages = [];
+        this.displayScale = 1;
+
         // Bind methods
         this._gameLoop = this._gameLoop.bind(this);
 
         // Setup input callbacks
         this.input.onLaunch = () => this._launchBall();
         this.input.onWeapon = (weaponId) => this._purchaseWeapon(weaponId);
+
+        // Window resize handler
+        window.addEventListener('resize', () => this._setupCanvas());
+    }
+
+    /**
+     * Setup canvas size to fit screen
+     * @private
+     */
+    _setupCanvas() {
+        // Set logical size
+        this.canvas.width = this.canvasWidth;
+        this.canvas.height = this.canvasHeight;
+
+        // Get available space
+        const wrapper = this.canvas.parentElement;
+        let availableWidth, availableHeight;
+
+        if (wrapper && wrapper.offsetWidth > 0) {
+            availableWidth = wrapper.clientWidth;
+            availableHeight = wrapper.clientHeight;
+        } else {
+            availableWidth = window.innerWidth;
+            availableHeight = window.innerHeight - 150; // UI space
+        }
+
+        // Calculate scale to fit
+        const scaleX = availableWidth / this.canvas.width;
+        const scaleY = availableHeight / this.canvas.height;
+        const scale = Math.min(scaleX, scaleY, 1); // Shrink only, never enlarge
+
+        // Apply CSS display size
+        this.canvas.style.width = (this.canvas.width * scale) + 'px';
+        this.canvas.style.height = (this.canvas.height * scale) + 'px';
+
+        this.displayScale = scale;
     }
 
     /**
@@ -87,15 +127,19 @@ export class Game {
         if (stageData.canvas) {
             this.canvasWidth = stageData.canvas.width;
             this.canvasHeight = stageData.canvas.height;
-            this.canvas.width = this.canvasWidth;
-            this.canvas.height = this.canvasHeight;
         }
+
+        // Setup canvas with resize
+        this._setupCanvas();
 
         // Set grid size
         if (stageData.gridSize) {
             this.gridSize = GRID_SIZES[stageData.gridSize] || GRID_SIZES.medium;
             this.collision.setGridSize(stageData.gridSize);
         }
+
+        // Load background images
+        this._loadBackgrounds(stageData);
 
         // Load state
         this.state.loadStage(stageData);
@@ -172,6 +216,36 @@ export class Game {
             '#FFEB3B', '#FFC107', '#FF9800', '#FF5722'
         ];
         return colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    /**
+     * Load background images from stage data
+     * @param {Object} stageData
+     * @private
+     */
+    _loadBackgrounds(stageData) {
+        this.backgroundImages = [];
+
+        // Collect backgrounds from baseLayer and backgrounds array
+        const backgrounds = stageData.backgrounds || [];
+
+        // Sort by zIndex
+        const sorted = [...backgrounds].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+
+        for (const bgData of sorted) {
+            if (bgData.imageData) {
+                const img = new Image();
+                img.src = bgData.imageData;
+                this.backgroundImages.push({
+                    image: img,
+                    x: bgData.x || 0,
+                    y: bgData.y || 0,
+                    width: bgData.width || this.canvasWidth,
+                    height: bgData.height || this.canvasHeight,
+                    zIndex: bgData.zIndex || 0
+                });
+            }
+        }
     }
 
     /**
@@ -722,6 +796,13 @@ export class Game {
         // Clear canvas
         ctx.fillStyle = '#1a1a2e';
         ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
+
+        // Draw background images
+        for (const bg of this.backgroundImages) {
+            if (bg.image && bg.image.complete) {
+                ctx.drawImage(bg.image, bg.x, bg.y, bg.width, bg.height);
+            }
+        }
 
         // Draw lines (collision, paddle, missline, decoration)
         this._renderLines();
