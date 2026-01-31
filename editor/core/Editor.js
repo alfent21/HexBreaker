@@ -654,36 +654,9 @@ export class Editor {
     }
     /**
      * Preview current stage in game runtime
-     * Preview current stage
      */
-    previewStage() {
-        try {
-            const stageData = this.stageManager.serializeStage();
-            const json = JSON.stringify(stageData);
-
-            // Check size and warn if too large
-            const sizeMB = json.length / (1024 * 1024);
-            if (sizeMB > 4) {
-                throw new Error(`データが大きすぎます (${sizeMB.toFixed(1)}MB)。画像サイズを縮小してください。`);
-            }
-
-            // Clear old preview data first
-            try {
-                localStorage.removeItem('hexbreaker_preview_stage');
-            } catch (e) {
-                // Ignore
-            }
-
-            localStorage.setItem('hexbreaker_preview_stage', json);
-            const win = window.open('game_index.html', '_blank');
-            if (!win) {
-                throw new Error('ポップアップがブロックされました。ブラウザの設定を確認してください。');
-            }
-        } catch (e) {
-            console.error(e);
-            this.emit('message', { type: 'error', text: `プレビュー失敗: ${e.message}` });
-            alert(`プレビュー起動エラー:\n${e.message}\n\n詳細はコンソール(F12)を確認してください。`);
-        }
+    async previewStage() {
+        await this.projectFileSystem.saveForPreview();
     }
 }
 
