@@ -142,9 +142,10 @@
 
     <script type="module">
         import { Game } from './game/Game.js';
+        import { previewStorage } from './shared/PreviewStorage.js';
 
         // Initialize game on DOM ready
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             const canvas = document.getElementById('gameCanvas');
             const game = new Game(canvas);
 
@@ -227,19 +228,18 @@
                 game.restart(); // For now, just restart same stage
             });
 
-            // Check for stage data from editor (via localStorage)
-            const stageDataJson = localStorage.getItem('hexbreaker_preview_stage');
-            if (stageDataJson) {
-                try {
-                    const stageData = JSON.parse(stageDataJson);
+            // Check for stage data from editor (via IndexedDB)
+            try {
+                const stageData = await previewStorage.load();
+                if (stageData) {
                     game.loadStage(stageData);
-                    localStorage.removeItem('hexbreaker_preview_stage');
-                } catch (e) {
-                    console.error('Failed to load stage data:', e);
+                    await previewStorage.clear();
+                } else {
+                    // Load test stage for demonstration
                     game.loadTestStage();
                 }
-            } else {
-                // Load test stage for demonstration
+            } catch (e) {
+                console.error('Failed to load stage data:', e);
                 game.loadTestStage();
             }
 

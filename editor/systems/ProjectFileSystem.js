@@ -7,11 +7,10 @@
 import { fileManager } from './FileManager.js';
 import { serializationService } from './SerializationService.js';
 import { dialogService } from '../ui/DialogService.js';
+import { previewStorage } from '../../shared/PreviewStorage.js';
 
 /** @type {string} LocalStorageキー（プロジェクト保存用） */
 const STORAGE_KEY_PROJECT = 'hexbreaker_last_project';
-/** @type {string} LocalStorageキー（プレビュー用） */
-const STORAGE_KEY_PREVIEW = 'hexbreaker_preview_stage';
 /** @type {number} LocalStorageの最大サイズ（MB） */
 const LOCAL_STORAGE_MAX_MB = 4;
 
@@ -284,7 +283,7 @@ export class ProjectFileSystem {
     // =========================================================================
 
     /**
-     * プレビュー用にステージをlocalStorageに保存してゲームを開く
+     * プレビュー用にステージをIndexedDBに保存してゲームを開く
      * @returns {Promise<boolean>}
      */
     async saveForPreview() {
@@ -300,16 +299,9 @@ export class ProjectFileSystem {
 
             // ゲーム用形式でシリアライズ
             const data = this.serialization.serializeStageForGame(stage);
-            const json = JSON.stringify(data);
 
-            // サイズ検証
-            const sizeCheck = this.fileManager.validateJsonSize(json, LOCAL_STORAGE_MAX_MB);
-            if (!sizeCheck.valid) {
-                throw new Error(`データが大きすぎます (${sizeCheck.sizeMB.toFixed(2)}MB > ${LOCAL_STORAGE_MAX_MB}MB)`);
-            }
-
-            // localStorageに保存
-            localStorage.setItem(STORAGE_KEY_PREVIEW, json);
+            // IndexedDBに保存（サイズ制限なし）
+            await previewStorage.save(data);
 
             // ゲームを開く
             window.open('game_index.html', '_blank');
