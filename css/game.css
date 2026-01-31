@@ -10,17 +10,24 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    min-height: 100vh;
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
     background: var(--color-bg-primary);
 }
 
-/* Game canvas */
+/* Game canvas wrapper - takes available space */
 .game-canvas-wrapper {
+    flex: 1;
     position: relative;
     display: flex;
-    flex-direction: column;
+    justify-content: center;
     align-items: center;
+    overflow: hidden;
+    min-height: 0; /* Allow flex shrinking */
+    width: 100%;
+    padding: var(--spacing-md);
+    box-sizing: border-box;
 }
 
 #gameCanvas {

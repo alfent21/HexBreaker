@@ -173,7 +173,12 @@ export class Game {
         // Start game
         this.running = true;
         this.lastTime = performance.now();
-        requestAnimationFrame(this._gameLoop);
+
+        // Recalculate canvas size after DOM update
+        requestAnimationFrame(() => {
+            this._setupCanvas();
+            requestAnimationFrame(this._gameLoop);
+        });
 
         // Update UI
         this._updateUI();
