@@ -103,22 +103,7 @@ export class StartupManager {
      * Save current project to localStorage
      */
     saveToLocalStorage() {
-        try {
-            const projectData = this.editor.serializeProject();
-            const json = JSON.stringify(projectData);
-
-            // Check size (localStorage limit is ~5MB)
-            if (json.length > 4 * 1024 * 1024) {
-                console.warn('Project too large for localStorage');
-                return false;
-            }
-
-            localStorage.setItem(STORAGE_KEY, json);
-            return true;
-        } catch (e) {
-            console.error('Failed to save to localStorage:', e);
-            return false;
-        }
+        return this.editor.projectFileSystem.saveToLocalStorage();
     }
 
     /**
@@ -707,7 +692,7 @@ export class StartupManager {
      * @param {Object} data
      */
     async _restoreProject(data) {
-        await this.editor.loadProject(data);
+        await this.editor.projectFileSystem.loadProjectFromData(data);
     }
 }
 

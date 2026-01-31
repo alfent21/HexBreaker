@@ -9,6 +9,7 @@ import { pixelToHex } from '../../shared/HexMath.js';
 import { TOOLS, ZOOM_CONFIG } from '../core/Config.js';
 import { CursorManager } from '../utils/CursorManager.js';
 import { SnapHelper } from '../utils/SnapHelper.js';
+import { dialogService } from '../ui/DialogService.js';
 
 export class Events {
     /**
@@ -151,14 +152,14 @@ export class Events {
      * Handle left click based on current tool
      * @private
      */
-    _handleLeftClick(coords, e) {
+    async _handleLeftClick(coords, e) {
         const tool = this.editor.currentTool;
         const gridSize = this.editor.renderSystem.gridSize;
         const hex = pixelToHex(coords.x, coords.y, gridSize);
 
         // Check if we need to switch to a block layer for block operations
         const isBlockTool = [TOOLS.BRUSH, TOOLS.ERASER, TOOLS.FILL].includes(tool);
-        if (isBlockTool && !this._ensureBlockLayerActive()) {
+        if (isBlockTool && !await this._ensureBlockLayerActive()) {
             return; // User cancelled or no block layer available
         }
 
@@ -510,9 +511,9 @@ export class Events {
      * Ensure a block layer is active for block operations.
      * If an image layer is active, prompt user to switch to nearest block layer.
      * @private
-     * @returns {boolean} True if a block layer is now active, false if cancelled or unavailable
+     * @returns {Promise<boolean>} True if a block layer is now active, false if cancelled or unavailable
      */
-    _ensureBlockLayerActive() {
+    async _ensureBlockLayerActive() {
         const layerManager = this.editor.layerManager;
         const activeLayer = layerManager.getActiveLayer();
 
@@ -536,7 +537,7 @@ export class Events {
         }
 
         // Prompt user
-        const shouldSwitch = confirm(`レイヤー「${nearestBlockLayer.name}」を選択して編集しますか？`);
+        const shouldSwitch = await dialogService.confirm(`レイヤー「${nearestBlockLayer.name}」を選択して編集しますか？`);
 
         if (shouldSwitch) {
             layerManager.setActiveLayer(nearestBlockLayer.id);

@@ -6,6 +6,7 @@
  */
 
 import { TOOLS, BRUSH_SIZES, LINE_TYPES, DURABILITY_COLORS, MESSAGE_TYPES } from '../core/Config.js';
+import { dialogService } from './DialogService.js';
 
 export class UIController {
     /**
@@ -440,9 +441,9 @@ export class UIController {
             });
 
             // Delete button
-            item.querySelector('[data-action="delete"]').addEventListener('click', (e) => {
+            item.querySelector('[data-action="delete"]').addEventListener('click', async (e) => {
                 e.stopPropagation();
-                if (confirm(`レイヤー "${layer.name}" を削除しますか？`)) {
+                if (await dialogService.confirm(`レイヤー "${layer.name}" を削除しますか？`, { type: 'danger' })) {
                     this.editor.layerManager.removeLayer(layer.id);
                 }
             });
@@ -486,79 +487,24 @@ export class UIController {
      * Open project file
      * @private
      */
-    _openProject() {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.hbp,.json';
-
-        input.onchange = async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            try {
-                const text = await file.text();
-                const data = JSON.parse(text);
-                await this.editor.loadProjectData(data);
-            } catch (error) {
-                this._addMessage('error', `プロジェクトの読み込みに失敗しました: ${error.message}`);
-            }
-        };
-
-        input.click();
+    async _openProject() {
+        await this.editor.projectFileSystem.openProject();
     }
 
     /**
      * Save project file
      * @private
      */
-    _saveProject() {
-        const data = this.editor.getProjectData();
-        if (!data) {
-            this._addMessage('warning', '保存するプロジェクトがありません。新規作成してください。');
-            return;
-        }
-
-        const json = JSON.stringify(data, null, 2);
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${this.editor.projectName || 'project'}.hbp`;
-        a.click();
-
-        URL.revokeObjectURL(url);
-        this.editor.isDirty = false;
-
-        this._addMessage('info', 'プロジェクトを保存しました');
+    async _saveProject() {
+        await this.editor.projectFileSystem.saveProject();
     }
 
     /**
      * Export current stage as JSON
      * @private
      */
-    _exportStage() {
-        try {
-            const data = this.editor.exportCurrentStageData();
-            if (!data) {
-                this._addMessage('warning', 'エクスポートするステージがありません');
-                return;
-            }
-
-            const json = JSON.stringify(data, null, 2);
-            const blob = new Blob([json], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${data.stageName || 'stage'}.json`;
-            a.click();
-
-            URL.revokeObjectURL(url);
-            this._addMessage('info', 'ステージをエクスポートしました');
-        } catch (e) {
-            this._addMessage('error', `エクスポート失敗: ${e.message}`);
-        }
+    async _exportStage() {
+        await this.editor.projectFileSystem.exportCurrentStage();
     }
 
     /**
@@ -1098,7 +1044,7 @@ export class UIController {
      * Execute context menu action
      * @private
      */
-    _executeContextMenuAction(action) {
+    async _executeContextMenuAction(action) {
         const layerId = this._currentContextLayerId;
         if (!layerId) return;
 
@@ -1130,7 +1076,7 @@ export class UIController {
             }
 
             case 'clear-blocks': {
-                if (layer.type === 'block' && confirm('すべてのブロックを削除しますか？')) {
+                if (layer.type === 'block' && await dialogService.confirm('すべてのブロックを削除しますか？', { type: 'danger' })) {
                     layer.blocks.clear();
                     this.editor.render();
                     this._addMessage('info', 'ブロックをクリアしました');
@@ -1149,7 +1095,7 @@ export class UIController {
             }
 
             case 'delete': {
-                if (confirm(`レイヤー「${layer.name}」を削除しますか？`)) {
+                if (await dialogService.confirm(`レイヤー「${layer.name}」を削除しますか？`, { type: 'danger' })) {
                     this.editor.layerManager.removeLayer(layerId);
                 }
                 break;

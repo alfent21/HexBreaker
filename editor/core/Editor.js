@@ -17,6 +17,7 @@ import { StageManager } from '../managers/StageManager.js';
 import { StartupManager } from '../managers/StartupManager.js';
 import { RenderSystem } from '../systems/RenderSystem.js';
 import { createProjectFileSystem } from '../systems/ProjectFileSystem.js';
+import { dialogService } from '../ui/DialogService.js';
 
 export class Editor {
     constructor() {
@@ -384,9 +385,13 @@ export class Editor {
     /**
      * Create a new project (legacy - shows dialog)
      */
-    newProject() {
+    async newProject() {
         if (this.isDirty) {
-            if (!confirm('未保存の変更があります。新規プロジェクトを作成しますか？')) {
+            const confirmed = await dialogService.confirm(
+                '未保存の変更があります。新規プロジェクトを作成しますか？',
+                { type: 'warning' }
+            );
+            if (!confirmed) {
                 return;
             }
         }
@@ -580,172 +585,6 @@ export class Editor {
                 });
             }
         }
-    }
-
-    /**
-     * Serialize entire project for saving
-     * @returns {Object}
-     */
-    serializeProject() {
-        // Sync current state to stage
-        this._syncLayersToStage();
-        this._syncLinesToStage();
-
-        // Note: baseLayer is now stored within each stage, not at project level
-        return {
-            version: '5.0',
-            projectName: this.projectName,
-            stages: this.stageManager.serialize()
-        };
-    }
-
-    /**
-     * Load project from serialized data
-     * @param {Object} data
-     */
-    async loadProject(data) {
-        if (!data.version) {
-            throw new Error('無効なプロジェクトファイルです');
-        }
-
-        this.projectName = data.projectName || 'Untitled Project';
-
-        // Clear current state
-        this.stageManager.clear();
-        this.layerManager.clear();
-        this.lineManager.clear();
-
-        // Restore stages (includes baseLayer for each stage)
-        // Note: deserialize calls setCurrentStage which triggers _loadStageData
-        // which restores the baseLayer and layers to layerManager
-        if (data.stages) {
-            await this.stageManager.deserialize(data.stages);
-        }
-
-        this.isDirty = false;
-        this.render();
-
-        this.emit('projectChanged', this.projectName);
-        this.emit('message', { type: 'info', text: `プロジェクトを読み込みました: ${this.projectName}` });
-    }
-
-    /**
-     * Get project data for saving (v5.0 format)
-     * @returns {Object|null}
-     */
-    getProjectData() {
-        // Check if there's anything to save
-        if (!this.stageManager || this.stageManager.stages.length === 0) {
-            console.warn('保存するステージがありません');
-            return null;
-        }
-
-        // Sync current state to stage before serializing
-        this._syncLayersToStage();
-        this._syncLinesToStage();
-
-        return {
-            version: '5.0',
-            projectName: this.projectName,
-            stages: this.stageManager.serialize()
-        };
-    }
-
-    /**
-     * Load project from data (v5.0 format)
-     * @param {Object} data
-     */
-    async loadProjectData(data) {
-        // Validate version
-        if (!data.version) {
-            throw new Error('無効なプロジェクトファイルです');
-        }
-
-        this.projectName = data.projectName || 'Untitled Project';
-
-        // Clear current state
-        this.stageManager.clear();
-        this.layerManager.clear();
-        this.lineManager.clear();
-
-        // Load stages (includes baseLayer for each stage)
-        if (data.stages) {
-            await this.stageManager.deserialize(data.stages);
-        }
-
-        this.isDirty = false;
-        this.render();
-
-        this.emit('projectChanged', this.projectName);
-        this.emit('message', { type: 'info', text: `プロジェクトを読み込みました: ${this.projectName}` });
-    }
-
-    /**
-     * Export current stage data for game
-     * @returns {Object}
-     */
-    exportCurrentStageData() {
-        const stage = this.getCurrentStage();
-        if (!stage) {
-            throw new Error('ステージが選択されていません');
-        }
-
-        const gridSize = GRID_SIZES[stage.gridSize];
-
-        // Get layers array (handle both object and array formats)
-        const layersArray = Array.isArray(stage.layers) ? stage.layers : [];
-
-        // Collect all blocks from visible block layers
-        const blocks = [];
-        for (const layer of layersArray) {
-            if (layer.type === 'block' && layer.visible) {
-                const blockData = layer.blocks instanceof Map
-                    ? Array.from(layer.blocks.values())
-                    : (Array.isArray(layer.blocks) ? layer.blocks.map(([key, val]) => val) : []);
-                blocks.push(...blockData);
-            }
-        }
-
-        // Collect background images
-        const backgrounds = [];
-
-        // Add base layer background first (if exists)
-        if (stage.baseLayer) {
-            backgrounds.push({
-                imageData: stage.baseLayer.imageData,
-                backgroundColor: stage.baseLayer.backgroundColor,
-                width: stage.baseLayer.width,
-                height: stage.baseLayer.height,
-                zIndex: -1  // Always at bottom
-            });
-        }
-
-        // Add image layers
-        for (const layer of layersArray) {
-            if (layer.type === 'image' && layer.visible) {
-                backgrounds.push({
-                    imageData: layer.imageData,
-                    zIndex: layer.zIndex
-                });
-            }
-        }
-
-        return {
-            version: '5.0',
-            stageName: stage.name,
-            canvas: stage.canvas,
-            gridSize: {
-                radius: gridSize.radius,
-                width: gridSize.width,
-                height: gridSize.height,
-                verticalSpacing: gridSize.verticalSpacing
-            },
-            baseLayer: stage.baseLayer,
-            backgrounds,
-            blocks,
-            lines: stage.lines,
-            meta: stage.meta
-        };
     }
 
     /**
