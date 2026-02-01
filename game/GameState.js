@@ -65,6 +65,7 @@ export class GameState {
                 color: block.color || '#64B5F6',
                 gemDrop: block.gemDrop || null,
                 blockType: block.blockType || null,
+                sourceLayerId: block.sourceLayerId ?? null,  // 画像クリッピング用
                 alive: true
             }));
         }

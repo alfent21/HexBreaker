@@ -14,11 +14,19 @@ import { getHexVertices } from './HexMath.js';
 export const RENDER_CONFIG = {
     block: {
         gap: 2,  // Gap between blocks (radius reduction)
+        // 境界線設定（画像クリッピング時）
+        border: {
+            color: '#ffffff',
+            widthRatio: 0.03  // radius の 3%
+        },
+        // エンボス設定（パーセンテージベース）
         emboss: {
-            inset: 3,  // Inset from hex edge for emboss effect
-            highlight: 'rgba(255, 255, 255, 0.4)',
-            shadow: 'rgba(0, 0, 0, 0.4)',
-            lineWidth: 2
+            insetRatio: 0.10,       // radius の 10%
+            lineWidthRatio: 0.08,   // radius の 8%
+            highlightColor: '#ffffff',
+            highlightOpacity: 0.5,
+            shadowColor: '#000000',
+            shadowOpacity: 0.4
         }
     },
     line: {
@@ -49,6 +57,24 @@ export const RENDER_CONFIG = {
     }
 };
 
+// ========== Helper Functions ==========
+
+/**
+ * Convert hex color to rgba string
+ * @private
+ * @param {string} hex - Hex color (e.g., '#ffffff')
+ * @param {number} opacity - Opacity (0-1)
+ * @returns {string} rgba string
+ */
+function _hexToRgba(hex, opacity) {
+    // Remove # if present
+    const cleanHex = hex.replace('#', '');
+    const r = parseInt(cleanHex.substring(0, 2), 16);
+    const g = parseInt(cleanHex.substring(2, 4), 16);
+    const b = parseInt(cleanHex.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
 // ========== Block Drawing ==========
 
 /**
@@ -67,8 +93,9 @@ export const RENDER_CONFIG = {
 export function drawHexBlock(ctx, centerX, centerY, radius, color, options = {}) {
     const { durability, gemDrop, blockType, clipImage } = options;
 
-    // Calculate actual radius with gap
-    const actualRadius = radius - RENDER_CONFIG.block.gap;
+    // Calculate actual radius with gap (画像クリッピング時は隙間なし)
+    const gap = clipImage ? 0 : RENDER_CONFIG.block.gap;
+    const actualRadius = radius - gap;
 
     // Get hex vertices
     const vertices = getHexVertices(centerX, centerY, actualRadius);
@@ -87,6 +114,22 @@ export function drawHexBlock(ctx, centerX, centerY, radius, color, options = {})
         ctx.clip();
         ctx.drawImage(clipImage, 0, 0);
         ctx.restore();
+
+        // 境界線を描画（gap=0 の場合、太さが0%なら描画しない）
+        const borderConfig = RENDER_CONFIG.block.border;
+        if (borderConfig.widthRatio > 0) {
+            ctx.beginPath();
+            ctx.moveTo(vertices[0].x, vertices[0].y);
+            for (let i = 1; i < vertices.length; i++) {
+                ctx.lineTo(vertices[i].x, vertices[i].y);
+            }
+            ctx.closePath();
+            ctx.strokeStyle = borderConfig.color;
+            ctx.lineWidth = Math.max(1, actualRadius * borderConfig.widthRatio);
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+        }
     } else {
         ctx.fillStyle = color;
         ctx.fill();
@@ -120,14 +163,20 @@ export function drawHexBlock(ctx, centerX, centerY, radius, color, options = {})
  */
 function _drawHexEmbossInset(ctx, centerX, centerY, radius) {
     const config = RENDER_CONFIG.block.emboss;
-    const insetRadius = radius - config.inset;
+
+    // 太さが0%ならエンボスを描画しない
+    if (config.lineWidthRatio <= 0) return;
+
+    // パーセンテージベースで計算
+    const insetRadius = radius - (radius * config.insetRatio);
+    const lineWidth = Math.max(1, radius * config.lineWidthRatio);
 
     // Get inset vertices
     const vertices = getHexVertices(centerX, centerY, insetRadius);
 
     // Highlight (top-left edges: vertices 5 -> 0 -> 1)
-    ctx.strokeStyle = config.highlight;
-    ctx.lineWidth = config.lineWidth;
+    ctx.strokeStyle = _hexToRgba(config.highlightColor, config.highlightOpacity);
+    ctx.lineWidth = lineWidth;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
@@ -138,7 +187,7 @@ function _drawHexEmbossInset(ctx, centerX, centerY, radius) {
     ctx.stroke();
 
     // Shadow (bottom-right edges: vertices 2 -> 3 -> 4)
-    ctx.strokeStyle = config.shadow;
+    ctx.strokeStyle = _hexToRgba(config.shadowColor, config.shadowOpacity);
 
     ctx.beginPath();
     ctx.moveTo(vertices[2].x, vertices[2].y);

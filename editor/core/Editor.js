@@ -30,7 +30,7 @@ export class Editor {
 
         // Subsystems (work with current stage data)
         this.layerManager = new LayerManager();
-        this.blockManager = new BlockManager(this.layerManager);
+        this.blockManager = new BlockManager(this.layerManager, this);
         this.lineManager = new LineManager();
         this.renderSystem = null;
         this.events = null;
@@ -189,13 +189,30 @@ export class Editor {
     /**
      * Delete a stage
      * @param {string} stageId
+     * @returns {boolean} True if deleted
      */
     deleteStage(stageId) {
+        const stages = this.stageManager.getAllStages();
+
+        // Prevent deleting the last stage
+        if (stages.length <= 1) {
+            this.emit('message', { type: 'warning', text: '最後のステージは削除できません' });
+            return false;
+        }
+
+        // Prevent deleting the first (base) stage
+        if (stages[0]?.id === stageId) {
+            this.emit('message', { type: 'warning', text: 'ベースステージは削除できません' });
+            return false;
+        }
+
         const stage = this.stageManager.getStage(stageId);
         if (stage) {
             this.stageManager.deleteStage(stageId);
             this.emit('message', { type: 'info', text: `ステージ「${stage.name}」を削除しました` });
+            return true;
         }
+        return false;
     }
 
     /**
@@ -420,6 +437,9 @@ export class Editor {
         this.stageManager.clear();
         this.projectName = 'Untitled Project';
         this.isDirty = false;
+
+        // 新規プロジェクトなのでファイルハンドルをクリア
+        this.projectFileSystem.clearFileHandle();
 
         // Create base layer configuration
         const baseLayerOptions = {

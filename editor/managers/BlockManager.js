@@ -6,15 +6,17 @@
  * on the active block layer.
  */
 
-import { getHexKey, parseHexKey, getHexNeighbors, hexToPixel } from '../../shared/HexMath.js';
+import { getHexKey, parseHexKey, getHexNeighbors, hexToPixel, getMaxRow, getMaxCol, isValidHexPosition } from '../../shared/HexMath.js';
 import { BLOCK_DEFAULTS, BRUSH_SIZES, DURABILITY_COLORS } from '../core/Config.js';
 
 export class BlockManager {
     /**
      * @param {import('./LayerManager.js').LayerManager} layerManager
+     * @param {import('../core/Editor.js').Editor} [editor] - Editor reference for boundary checking
      */
-    constructor(layerManager) {
+    constructor(layerManager, editor = null) {
         this.layerManager = layerManager;
+        this.editor = editor;
 
         // Current block settings
         this.currentDurability = BLOCK_DEFAULTS.durability;
@@ -26,6 +28,24 @@ export class BlockManager {
 
         // Event callbacks
         this.onBlockChange = null;
+    }
+
+    /**
+     * Check if a hex position is within valid canvas bounds
+     * @param {number} row
+     * @param {number} col
+     * @returns {boolean}
+     */
+    isValidPosition(row, col) {
+        if (row < 0 || col < 0) return false;
+
+        const gameArea = this.layerManager.gameAreaSize;
+        const gridSize = this.editor?.renderSystem?.gridSize;
+
+        // Reject if no stage/gameArea exists
+        if (!gameArea || !gridSize) return false;
+
+        return isValidHexPosition(row, col, gameArea.width, gameArea.height, gridSize);
     }
 
     /**
@@ -119,6 +139,9 @@ export class BlockManager {
         const layer = this.getActiveBlockLayer();
         if (!layer) return false;
 
+        // Boundary check
+        if (!this.isValidPosition(row, col)) return false;
+
         const key = getHexKey(row, col);
         const blockData = {
             row,
@@ -148,7 +171,7 @@ export class BlockManager {
         let count = 0;
 
         for (const cell of cells) {
-            if (cell.row >= 0 && cell.col >= 0) {
+            if (this.isValidPosition(cell.row, cell.col)) {
                 const key = getHexKey(cell.row, cell.col);
                 const blockData = {
                     row: cell.row,
@@ -334,10 +357,15 @@ export class BlockManager {
         // Scan through grid cells that might be in the rect
         const { width, verticalSpacing, radius } = gridSize;
 
+        // Calculate upper bounds based on canvas size
+        const gameArea = this.layerManager.gameAreaSize;
+        const maxValidRow = gameArea ? getMaxRow(gameArea.height, gridSize) : Infinity;
+        const maxValidCol = gameArea ? getMaxCol(gameArea.width, gridSize) : Infinity;
+
         const startRow = Math.max(0, Math.floor((minY - radius) / verticalSpacing));
-        const endRow = Math.ceil((maxY + radius) / verticalSpacing);
+        const endRow = Math.min(Math.ceil((maxY + radius) / verticalSpacing), maxValidRow);
         const startCol = Math.max(0, Math.floor((minX - width) / width));
-        const endCol = Math.ceil((maxX + width) / width);
+        const endCol = Math.min(Math.ceil((maxX + width) / width), maxValidCol);
 
         for (let row = startRow; row <= endRow; row++) {
             for (let col = startCol; col <= endCol; col++) {

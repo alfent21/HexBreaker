@@ -25,13 +25,15 @@ export class SerializationService {
      * @param {Object} params
      * @param {Array} params.stages - ステージ配列
      * @param {string} params.projectName - プロジェクト名
+     * @param {Object} params.blockRenderSettings - ブロック描画設定
      * @returns {Object}
      */
-    serializeProject({ stages, projectName }) {
+    serializeProject({ stages, projectName, blockRenderSettings }) {
         return {
             version: this.VERSION,
             projectName: projectName || 'Untitled Project',
-            stages: this.serializeStages(stages)
+            stages: this.serializeStages(stages),
+            blockRenderSettings: blockRenderSettings || null
         };
     }
 
@@ -90,7 +92,8 @@ export class SerializationService {
         return {
             version: migratedData.version,
             projectName: migratedData.projectName || 'Untitled Project',
-            stages: await this.deserializeStages(migratedData.stages || [])
+            stages: await this.deserializeStages(migratedData.stages || []),
+            blockRenderSettings: migratedData.blockRenderSettings || null
         };
     }
 
@@ -160,14 +163,23 @@ export class SerializationService {
     /**
      * 単一ステージをゲーム用形式でシリアライズ
      * @param {Object} stage
+     * @param {Object} blockRenderSettings - ブロック描画設定
      * @returns {Object}
      */
-    serializeStageForGame(stage) {
+    serializeStageForGame(stage, blockRenderSettings = null) {
         const gridSize = GRID_SIZES[stage.gridSize] || GRID_SIZES.medium;
         const layersArray = Array.isArray(stage.layers) ? stage.layers : [];
 
-        // 背景画像を収集
-        const backgrounds = this.collectBackgrounds(stage.baseLayer, layersArray);
+        // ブロックレイヤーで使われているsourceLayerIdを収集
+        const usedSourceLayerIds = new Set();
+        for (const layer of layersArray) {
+            if (layer.type === 'block' && layer.sourceLayerId != null) {
+                usedSourceLayerIds.add(layer.sourceLayerId);
+            }
+        }
+
+        // 背景画像を収集（ソースとして使われているものにフラグ付与）
+        const backgrounds = this.collectBackgrounds(stage.baseLayer, layersArray, usedSourceLayerIds);
 
         // ブロックを収集
         const blocks = this.collectBlocksFromLayers(layersArray);
@@ -186,7 +198,8 @@ export class SerializationService {
             backgrounds,
             blocks,
             lines: stage.lines || [],
-            meta: stage.meta || {}
+            meta: stage.meta || {},
+            blockRenderSettings: blockRenderSettings || null
         };
     }
 
@@ -194,9 +207,10 @@ export class SerializationService {
      * 背景画像を収集
      * @param {Object|null} baseLayer
      * @param {Array} layers
+     * @param {Set<number>} usedSourceLayerIds - ブロックソースとして使われている画像レイヤーID
      * @returns {Array}
      */
-    collectBackgrounds(baseLayer, layers) {
+    collectBackgrounds(baseLayer, layers, usedSourceLayerIds = new Set()) {
         const backgrounds = [];
 
         // ベースレイヤーを最初に追加
@@ -210,12 +224,14 @@ export class SerializationService {
             });
         }
 
-        // 画像レイヤーを追加
+        // 画像レイヤーを追加（visibleはエディター表示用なのでエクスポートには影響させない）
         for (const layer of layers) {
-            if (layer.type === 'image' && layer.visible && layer.imageData) {
+            if (layer.type === 'image' && layer.imageData) {
                 backgrounds.push({
+                    id: layer.id,  // ブロックのsourceLayerIdとマッチング用
                     imageData: layer.imageData,
-                    zIndex: layer.zIndex
+                    zIndex: layer.zIndex,
+                    isBlockSource: usedSourceLayerIds.has(layer.id)  // ブロックソースの場合は背景として描画しない
                 });
             }
         }
@@ -231,8 +247,14 @@ export class SerializationService {
     collectBlocksFromLayers(layers) {
         const blocks = [];
         for (const layer of layers) {
-            if (layer.type === 'block' && layer.visible) {
+            // visibleはエディター表示用なのでエクスポートには影響させない
+            if (layer.type === 'block') {
                 const blockData = this.extractBlockValues(layer.blocks);
+                // sourceLayerIdを各ブロックに追加
+                const sourceId = layer.sourceLayerId || null;
+                for (const block of blockData) {
+                    block.sourceLayerId = sourceId;
+                }
                 blocks.push(...blockData);
             }
         }

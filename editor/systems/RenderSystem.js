@@ -5,7 +5,7 @@
  * Handles all canvas rendering for the editor.
  */
 
-import { GRID_SIZES, hexToPixel, getHexVertices } from '../../shared/HexMath.js';
+import { GRID_SIZES, hexToPixel, getHexVertices, getMaxRow, getMaxCol } from '../../shared/HexMath.js';
 import { CANVAS_CONFIG, SELECTION_COLORS, LINE_TYPES, VERTEX_HANDLE, TOOLS } from '../core/Config.js';
 import { drawHexBlock, drawLine } from '../../shared/Renderer.js';
 
@@ -151,7 +151,7 @@ export class RenderSystem {
         // Draw base layer first (always at bottom)
         if (this.layerManager) {
             const baseLayer = this.layerManager.getBaseLayer();
-            if (baseLayer) {
+            if (baseLayer && baseLayer.visible !== false) {
                 this._drawBaseLayer(ctx, baseLayer);
             }
         }
@@ -299,9 +299,13 @@ export class RenderSystem {
 
         // Calculate visible grid bounds
         const startRow = Math.max(0, Math.floor(-radius / verticalSpacing));
-        const endRow = Math.ceil(this.height / verticalSpacing) + 1;
         const startCol = Math.max(0, Math.floor(-width / 2 / width));
-        const endCol = Math.ceil(this.width / width) + 1;
+
+        // Apply upper bounds based on canvas size
+        const maxRow = getMaxRow(this.height, this.gridSize);
+        const maxCol = getMaxCol(this.width, this.gridSize);
+        const endRow = Math.min(Math.ceil(this.height / verticalSpacing), maxRow);
+        const endCol = Math.min(Math.ceil(this.width / width), maxCol);
 
         ctx.strokeStyle = CANVAS_CONFIG.gridColor;
         ctx.lineWidth = 1;

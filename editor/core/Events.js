@@ -625,6 +625,13 @@ export class Events {
             }
         }
 
+        // Ctrl+Shift+S - Save As
+        if (e.ctrlKey && e.shiftKey && e.code === 'KeyS') {
+            e.preventDefault();
+            this.editor.emit('saveAs');
+            return;
+        }
+
         // Ctrl+S - Save
         if (e.ctrlKey && e.code === 'KeyS') {
             e.preventDefault();

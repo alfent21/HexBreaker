@@ -15,7 +15,7 @@ import { Shield } from './entities/Shield.js';
 import { CollisionSystem } from './physics/CollisionSystem.js';
 import { Boss, BOSS_STATES } from './entities/Boss.js';
 import { hexToPixel, GRID_SIZES } from '../shared/HexMath.js';
-import { drawHexBlock, drawLines } from '../shared/Renderer.js';
+import { drawHexBlock, drawLines, RENDER_CONFIG } from '../shared/Renderer.js';
 
 // Weapon costs
 const WEAPON_COSTS = {
@@ -152,6 +152,13 @@ export class Game {
             }
         }
 
+        // Apply block render settings if provided
+        if (stageData.blockRenderSettings) {
+            this._applyBlockRenderSettings(stageData.blockRenderSettings);
+        } else {
+            this.showMessage('描画設定: デフォルト使用', 'warning');
+        }
+
         // Load background images
         this._loadBackgrounds(stageData);
 
@@ -251,6 +258,25 @@ export class Game {
     }
 
     /**
+     * Apply block render settings from stage data
+     * @param {Object} settings
+     * @private
+     */
+    _applyBlockRenderSettings(settings) {
+        if (settings.border) {
+            Object.assign(RENDER_CONFIG.block.border, settings.border);
+        }
+        if (settings.emboss) {
+            Object.assign(RENDER_CONFIG.block.emboss, settings.emboss);
+        }
+
+        // 確認メッセージ
+        const borderWidth = Math.round((settings.border?.widthRatio || 0) * 100);
+        const embossWidth = Math.round((settings.emboss?.lineWidthRatio || 0) * 100);
+        this.showMessage(`描画設定: 境界線${borderWidth}% エンボス${embossWidth}%`, 'info');
+    }
+
+    /**
      * Load background images from stage data
      * @param {Object} stageData
      * @private
@@ -269,12 +295,14 @@ export class Game {
                 const img = new Image();
                 img.src = bgData.imageData;
                 this.backgroundImages.push({
+                    id: bgData.id || null,  // ブロックのsourceLayerIdとマッチング用
                     image: img,
                     x: bgData.x || 0,
                     y: bgData.y || 0,
                     width: bgData.width || this.canvasWidth,
                     height: bgData.height || this.canvasHeight,
-                    zIndex: bgData.zIndex || 0
+                    zIndex: bgData.zIndex || 0,
+                    isBlockSource: bgData.isBlockSource || false  // ブロックソースは背景として描画しない
                 });
             }
         }
@@ -297,12 +325,18 @@ export class Game {
      * @private
      */
     _launchBall() {
+        let launched = false;
         for (const ball of this.balls) {
             if (ball.attached) {
                 // Launch at slight random angle
                 const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.5;
                 ball.launch(angle);
+                launched = true;
             }
+        }
+        // ゲーム開始時にデバッグメッセージを非表示にしてHUDを表示
+        if (launched) {
+            this.hideMessages();
         }
     }
 
@@ -829,8 +863,9 @@ export class Game {
         ctx.fillStyle = '#1a1a2e';
         ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
 
-        // Draw background images
+        // Draw background images (skip block source images)
         for (const bg of this.backgroundImages) {
+            if (bg.isBlockSource) continue;  // ブロックソース画像は背景として描画しない
             if (bg.image && bg.image.complete) {
                 ctx.drawImage(bg.image, bg.x, bg.y, bg.width, bg.height);
             }
@@ -900,6 +935,18 @@ export class Game {
         if (!this._blocksMessageShown && this.state.blocks.length > 0) {
             this.showMessage(`✓ ${this.state.blocks.length} blocks loaded`, 'success');
             this._blocksMessageShown = true;
+
+            // デバッグ: ブロックとソース画像の状態、描画設定をメッセージ領域に出力
+            const blocksWithSource = this.state.blocks.filter(b => b.sourceLayerId != null);
+            const bgIds = this.backgroundImages.map(bg => bg.id).join(',');
+            const sampleSourceId = blocksWithSource.length > 0 ? blocksWithSource[0].sourceLayerId : 'none';
+            const borderW = Math.round((RENDER_CONFIG.block.border.widthRatio || 0) * 100);
+            const embossW = Math.round((RENDER_CONFIG.block.emboss.lineWidthRatio || 0) * 100);
+            this.showMessage(
+                `[DEBUG] blocks:${blocksWithSource.length}/${this.state.blocks.length}, bgIds:[${bgIds}], 境界線:${borderW}%, エンボス:${embossW}%`,
+                'warning',
+                8000
+            );
         }
 
         for (const block of this.state.blocks) {
@@ -907,11 +954,23 @@ export class Game {
 
             const center = hexToPixel(block.row, block.col, this.gridSize);
 
+            // sourceLayerIdから対応する背景画像を取得
+            let clipImage = null;
+            if (block.sourceLayerId != null) {
+                const bgEntry = this.backgroundImages.find(
+                    bg => bg.id === block.sourceLayerId
+                );
+                if (bgEntry && bgEntry.image) {
+                    clipImage = bgEntry.image;
+                }
+            }
+
             // Use shared renderer for block drawing
             drawHexBlock(this.ctx, center.x, center.y, this.gridSize.radius, block.color || '#64B5F6', {
                 durability: block.durability,
                 gemDrop: block.gemDrop,
-                blockType: block.blockType
+                blockType: block.blockType,
+                clipImage: clipImage
             });
         }
     }
@@ -1070,39 +1129,97 @@ export class Game {
     // =========================================================================
 
     /**
-     * Show a message in the header area
+     * Show a message in the header area (スタック表示対応)
      * @param {string} text - Message text
      * @param {string} type - Message type ('info', 'success', 'warning', 'error')
      * @param {number} duration - Display duration in ms (default: 3000)
      */
     showMessage(text, type = 'info', duration = 3000) {
+        const now = Date.now();
         // Add to log
-        this._messageLog.push({ text, type, time: Date.now() });
+        this._messageLog.push({ text, type, time: now });
 
         // Get DOM elements
         const hud = document.getElementById('header-hud');
-        const msg = document.getElementById('header-message');
+        const container = document.getElementById('header-message-container');
+        const stack = document.getElementById('header-message-stack');
+        const copyAllBtn = document.getElementById('header-message-copy-all');
 
-        if (!hud || !msg) {
-            console.log(`[${type.toUpperCase()}] ${text}`);
+        if (!hud || !container || !stack) {
             return;
         }
 
-        // Hide HUD, show message
+        // Hide HUD, show message container
         hud.classList.add('hidden');
-        msg.className = `header-message visible header-message--${type}`;
-        msg.textContent = text;
+        container.classList.add('visible');
 
-        // Clear existing timer
-        if (this._messageTimer) {
-            clearTimeout(this._messageTimer);
+        // Create message item
+        const timeStr = new Date(now).toLocaleTimeString('ja-JP', {
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+
+        const item = document.createElement('div');
+        item.className = `header-message-item header-message-item--${type}`;
+        item.innerHTML = `
+            <span class="msg-time">${timeStr}</span>
+            <span class="msg-text">${text}</span>
+            <button class="msg-copy" title="コピー">📋</button>
+        `;
+
+        // Single message copy button
+        item.querySelector('.msg-copy').onclick = () => {
+            navigator.clipboard.writeText(text).then(() => {
+                item.querySelector('.msg-copy').textContent = '✓';
+                setTimeout(() => { item.querySelector('.msg-copy').textContent = '📋'; }, 1000);
+            });
+        };
+
+        stack.appendChild(item);
+        stack.scrollTop = stack.scrollHeight;
+
+        // Limit visible messages (keep last 5)
+        while (stack.children.length > 5) {
+            stack.removeChild(stack.firstChild);
         }
 
-        // Restore HUD after duration
-        this._messageTimer = setTimeout(() => {
-            msg.classList.remove('visible');
+        // Setup copy all button (once)
+        if (copyAllBtn && !copyAllBtn._bound) {
+            copyAllBtn._bound = true;
+            copyAllBtn.onclick = () => {
+                const allText = this._messageLog
+                    .map(m => {
+                        const t = new Date(m.time).toLocaleTimeString('ja-JP', {
+                            hour: '2-digit', minute: '2-digit', second: '2-digit'
+                        });
+                        return `[${t}] [${m.type.toUpperCase()}] ${m.text}`;
+                    })
+                    .join('\n');
+                navigator.clipboard.writeText(allText).then(() => {
+                    copyAllBtn.textContent = '✓全部';
+                    setTimeout(() => { copyAllBtn.textContent = '📋全部'; }, 1000);
+                });
+            };
+        }
+        // メッセージはゲーム開始まで表示し続ける（タイマーで消さない）
+    }
+
+    /**
+     * Hide messages and restore HUD (ゲーム開始時に呼び出す)
+     */
+    hideMessages() {
+        const hud = document.getElementById('header-hud');
+        const container = document.getElementById('header-message-container');
+        const stack = document.getElementById('header-message-stack');
+
+        if (container) {
+            container.classList.remove('visible');
+        }
+        if (hud) {
             hud.classList.remove('hidden');
-        }, duration);
+        }
+        if (stack) {
+            stack.innerHTML = '';
+        }
     }
 
     /**

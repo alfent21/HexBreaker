@@ -74,26 +74,96 @@
     display: none;
 }
 
-/* メッセージ表示 (一時表示) */
-.header-message {
+/* メッセージコンテナ (スタック表示) */
+.header-message-container {
     display: none;
     width: 100%;
-    text-align: center;
-    font-size: 14px;
-    font-weight: 500;
-}
-
-.header-message.visible {
-    display: flex;
     align-items: center;
-    justify-content: center;
     gap: 8px;
 }
 
-.header-message--info { color: #64B5F6; }
-.header-message--success { color: #4CAF50; }
-.header-message--warning { color: #FFC107; }
-.header-message--error { color: #F44336; }
+.header-message-container.visible {
+    display: flex;
+}
+
+.header-message-stack {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 46px;
+    overflow-y: auto;
+    font-size: 12px;
+}
+
+.header-message-stack::-webkit-scrollbar {
+    width: 4px;
+}
+
+.header-message-stack::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+}
+
+.header-message-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.3);
+    user-select: text;
+}
+
+.header-message-item--info { color: #64B5F6; }
+.header-message-item--success { color: #4CAF50; }
+.header-message-item--warning { color: #FFC107; }
+.header-message-item--error { color: #F44336; }
+
+.header-message-item .msg-time {
+    font-size: 10px;
+    opacity: 0.6;
+    font-family: var(--font-mono);
+}
+
+.header-message-item .msg-text {
+    flex: 1;
+}
+
+.header-message-item .msg-copy {
+    background: transparent;
+    border: none;
+    padding: 0 2px;
+    font-size: 10px;
+    cursor: pointer;
+    opacity: 0.5;
+}
+
+.header-message-item .msg-copy:hover {
+    opacity: 1;
+}
+
+.header-message-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.header-message-copy-all {
+    background: transparent;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    color: inherit;
+}
+
+.header-message-copy-all:hover {
+    opacity: 1;
+}
 
 /* ==========================================================================
    Header HUD要素

@@ -39,38 +39,22 @@ export class ProjectFileSystem {
     // =========================================================================
 
     /**
-     * プロジェクトを保存（ファイルダウンロード）
-     * @returns {Promise<boolean>} 成功したかどうか
+     * プロジェクトを上書き保存
+     * ファイルハンドルがない場合は「別名で保存」にリダイレクト
+     * @returns {Promise<boolean>}
      */
     async saveProject() {
+        // ファイルハンドルがない場合は別名で保存
+        if (!this.fileManager.canSave()) {
+            return this.saveProjectAs();
+        }
+
         const closeLoading = this.dialogs.showLoading('プロジェクトを保存中...');
 
         try {
-            // 現在の状態を同期
-            this.editor._syncLayersToStage();
-            this.editor._syncLinesToStage();
+            const json = this._prepareProjectJson();
 
-            // シリアライズ
-            const data = this.serialization.serializeProject({
-                stages: this.editor.stageManager.stages,
-                projectName: this.currentProjectName
-            });
-
-            // JSON化
-            const json = JSON.stringify(data, null, 2);
-
-            // サイズ検証
-            const sizeCheck = this.fileManager.validateJsonSize(json, 10);
-            if (!sizeCheck.valid) {
-                throw new Error(sizeCheck.message);
-            }
-
-            // ファイル保存
-            await this.fileManager.saveFile(
-                json,
-                `${this.currentProjectName}.hbp`,
-                'application/json'
-            );
+            await this.fileManager.save(json, 'application/json');
 
             this.hasUnsavedChanges = false;
             this.dialogs.toast('プロジェクトを保存しました', 'success');
@@ -87,6 +71,85 @@ export class ProjectFileSystem {
     }
 
     /**
+     * プロジェクトを別名で保存
+     * @returns {Promise<boolean>}
+     */
+    async saveProjectAs() {
+        const closeLoading = this.dialogs.showLoading('プロジェクトを保存中...');
+
+        try {
+            const json = this._prepareProjectJson();
+
+            const saved = await this.fileManager.saveAs(
+                json,
+                `${this.currentProjectName}.hbp`,
+                'application/json'
+            );
+
+            if (saved) {
+                this.hasUnsavedChanges = false;
+                this.dialogs.toast('プロジェクトを保存しました', 'success');
+            }
+            return saved;
+
+        } catch (error) {
+            console.error('プロジェクト保存エラー:', error);
+            this.dialogs.toast(`保存に失敗しました: ${error.message}`, 'error');
+            return false;
+
+        } finally {
+            closeLoading();
+        }
+    }
+
+    /**
+     * プロジェクトのJSON文字列を準備
+     * @private
+     * @returns {string}
+     */
+    _prepareProjectJson() {
+        // 現在の状態を同期
+        this.editor._syncLayersToStage();
+        this.editor._syncLinesToStage();
+
+        // ブロック描画設定を取得
+        const blockRenderSettings = this.editor.uiController?.getBlockRenderSettings() || null;
+
+        // デバッグ: 保存時の設定値を確認
+        if (blockRenderSettings) {
+            const borderW = Math.round((blockRenderSettings.border?.widthRatio || 0) * 100);
+            const embossW = Math.round((blockRenderSettings.emboss?.lineWidthRatio || 0) * 100);
+            this.dialogs.toast(`保存: 境界線${borderW}%, エンボス${embossW}%`, 'info');
+        }
+
+        // シリアライズ
+        const data = this.serialization.serializeProject({
+            stages: this.editor.stageManager.stages,
+            projectName: this.currentProjectName,
+            blockRenderSettings
+        });
+
+        // JSON化
+        const json = JSON.stringify(data, null, 2);
+
+        // サイズ検証
+        const sizeCheck = this.fileManager.validateJsonSize(json, 10);
+        if (!sizeCheck.valid) {
+            throw new Error(sizeCheck.message);
+        }
+
+        return json;
+    }
+
+    /**
+     * @deprecated 内部メソッドは廃止。saveProject() または saveProjectAs() を使用。
+     */
+    async _saveProjectInternal(forceNewFile) {
+        console.warn('[ProjectFileSystem] _saveProjectInternal() is deprecated.');
+        return forceNewFile ? this.saveProjectAs() : this.saveProject();
+    }
+
+    /**
      * プロジェクトを取得（UIController用の互換メソッド）
      * @returns {Object|null}
      */
@@ -98,9 +161,13 @@ export class ProjectFileSystem {
         this.editor._syncLayersToStage();
         this.editor._syncLinesToStage();
 
+        // ブロック描画設定を取得
+        const blockRenderSettings = this.editor.uiController?.getBlockRenderSettings() || null;
+
         return this.serialization.serializeProject({
             stages: this.editor.stageManager.stages,
-            projectName: this.currentProjectName
+            projectName: this.currentProjectName,
+            blockRenderSettings
         });
     }
 
@@ -114,12 +181,20 @@ export class ProjectFileSystem {
      */
     async openProject() {
         const file = await this.fileManager.openFilePicker({
-            accept: '.hbp,.json'
+            accept: '.hbp,.json',
+            storeHandle: true  // 上書き保存用にハンドルを保存
         });
 
         if (!file) return false;
 
         return this.loadProjectFromFile(file);
+    }
+
+    /**
+     * 新規プロジェクト作成時にファイルハンドルをクリア
+     */
+    clearFileHandle() {
+        this.fileManager.clearFileHandle();
     }
 
     /**
@@ -210,6 +285,11 @@ export class ProjectFileSystem {
             this.editor.stageManager.setCurrentStage(data.stages[0].id);
         }
 
+        // ブロック描画設定を復元
+        if (data.blockRenderSettings) {
+            this.editor.uiController?.applyBlockRenderSettings(data.blockRenderSettings);
+        }
+
         this.editor.projectName = data.projectName;
         this.editor.isDirty = false;
         this.editor.render();
@@ -238,14 +318,17 @@ export class ProjectFileSystem {
             this.editor._syncLayersToStage();
             this.editor._syncLinesToStage();
 
+            // ブロック描画設定を取得
+            const blockRenderSettings = this.editor.uiController?.getBlockRenderSettings() || null;
+
             // ゲーム用形式でシリアライズ
-            const data = this.serialization.serializeStageForGame(stage);
+            const data = this.serialization.serializeStageForGame(stage, blockRenderSettings);
 
             // JSON化
             const json = JSON.stringify(data, null, 2);
 
-            // ファイル保存
-            await this.fileManager.saveFile(
+            // ファイル保存（エクスポートは常に新規保存）
+            await this.fileManager.saveAs(
                 json,
                 `${stage.name || 'stage'}.json`,
                 'application/json'
@@ -275,7 +358,10 @@ export class ProjectFileSystem {
         this.editor._syncLayersToStage();
         this.editor._syncLinesToStage();
 
-        return this.serialization.serializeStageForGame(stage);
+        // ブロック描画設定を取得
+        const blockRenderSettings = this.editor.uiController?.getBlockRenderSettings() || null;
+
+        return this.serialization.serializeStageForGame(stage, blockRenderSettings);
     }
 
     // =========================================================================
@@ -297,8 +383,20 @@ export class ProjectFileSystem {
             this.editor._syncLayersToStage();
             this.editor._syncLinesToStage();
 
+            // ブロック描画設定を取得
+            const blockRenderSettings = this.editor.uiController?.getBlockRenderSettings() || null;
+
+            // デバッグ: 設定値を確認
+            if (blockRenderSettings) {
+                const borderW = Math.round((blockRenderSettings.border?.widthRatio || 0) * 100);
+                const embossW = Math.round((blockRenderSettings.emboss?.lineWidthRatio || 0) * 100);
+                this.dialogs.toast(`プレビュー: 境界線${borderW}%, エンボス${embossW}%`, 'info');
+            } else {
+                this.dialogs.toast('プレビュー: 描画設定なし', 'warning');
+            }
+
             // ゲーム用形式でシリアライズ
-            const data = this.serialization.serializeStageForGame(stage);
+            const data = this.serialization.serializeStageForGame(stage, blockRenderSettings);
 
             // ブロック数チェック
             if (!data.blocks || data.blocks.length === 0) {
@@ -334,10 +432,14 @@ export class ProjectFileSystem {
             this.editor._syncLayersToStage();
             this.editor._syncLinesToStage();
 
+            // ブロック描画設定を取得
+            const blockRenderSettings = this.editor.uiController?.getBlockRenderSettings() || null;
+
             // シリアライズ
             const data = this.serialization.serializeProject({
                 stages: this.editor.stageManager.stages,
-                projectName: this.currentProjectName
+                projectName: this.currentProjectName,
+                blockRenderSettings
             });
 
             const json = JSON.stringify(data);

@@ -38,8 +38,10 @@ export class LineManager {
         this.isDrawing = false;
         this.currentPoints = [];
 
-        // Current line type for new lines
+        // Current line settings for new lines
         this.currentLineType = 'collision';
+        this.currentThickness = LINE_DEFAULTS.thickness;
+        this.currentOpacity = LINE_DEFAULTS.opacity;
 
         // Event callbacks
         this.onLineChange = null;
@@ -113,8 +115,8 @@ export class LineManager {
             closed,
             type: this.currentLineType,
             color: typeConfig.color,
-            thickness: LINE_DEFAULTS.thickness,
-            opacity: LINE_DEFAULTS.opacity
+            thickness: this.currentThickness,
+            opacity: this.currentOpacity
         });
 
         this.isDrawing = false;

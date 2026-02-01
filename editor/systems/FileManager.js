@@ -12,6 +12,24 @@ export class FileManager {
     constructor() {
         /** @type {boolean} File System Access API のサポート状況 */
         this.supportsFSA = 'showSaveFilePicker' in window;
+
+        /** @type {FileSystemFileHandle|null} 現在開いているプロジェクトファイルのハンドル */
+        this.currentFileHandle = null;
+    }
+
+    /**
+     * 現在のファイルハンドルをクリア（新規プロジェクト時に使用）
+     */
+    clearFileHandle() {
+        this.currentFileHandle = null;
+    }
+
+    /**
+     * ファイルハンドルがあるかどうか
+     * @returns {boolean}
+     */
+    hasFileHandle() {
+        return this.currentFileHandle !== null;
     }
 
     // =========================================================================
@@ -90,85 +108,127 @@ export class FileManager {
     // =========================================================================
 
     /**
-     * データをファイルとしてダウンロード
-     * @param {string|Blob} data - 保存するデータ
-     * @param {string} filename - ファイル名
-     * @param {string} mimeType - MIMEタイプ
+     * 上書き保存が可能かどうか
+     * @returns {boolean}
      */
-    async saveFile(data, filename, mimeType = 'application/json') {
-        const blob = data instanceof Blob ? data : new Blob([data], { type: mimeType });
-
-        // File System Access API が使える場合はそちらを優先
-        if (this.supportsFSA) {
-            try {
-                await this.saveWithPicker(blob, {
-                    suggestedName: filename,
-                    types: this._getFileTypes(filename)
-                });
-                return;
-            } catch (e) {
-                // ユーザーがキャンセルした場合、または API が失敗した場合
-                if (e.name === 'AbortError') {
-                    return; // ユーザーキャンセル
-                }
-                // フォールバック
-            }
-        }
-
-        // 従来のダウンロード方法
-        this._downloadViaLink(blob, filename);
+    canSave() {
+        return this.supportsFSA && this.currentFileHandle !== null;
     }
 
     /**
-     * File System Access API でファイル保存
-     * @param {Blob} blob - 保存するBlob
-     * @param {Object} options - ファイルピッカーのオプション
+     * データをファイルとして上書き保存
+     * ハンドルがない場合はエラーをthrow
+     * @param {string|Blob} data - 保存するデータ
+     * @param {string} mimeType - MIMEタイプ
+     * @returns {Promise<boolean>} 保存成功したか
+     * @throws {Error} ハンドルがない場合、またはFile System Access API非対応の場合
      */
-    async saveWithPicker(blob, options) {
-        const handle = await window.showSaveFilePicker(options);
+    async save(data, mimeType = 'application/json') {
+        if (!this.supportsFSA) {
+            throw new Error('このブラウザはFile System Access APIに対応していません');
+        }
+
+        if (!this.currentFileHandle) {
+            throw new Error('保存先のファイルが指定されていません。「別名で保存」を使用してください。');
+        }
+
+        const blob = data instanceof Blob ? data : new Blob([data], { type: mimeType });
+        await this._writeToHandle(this.currentFileHandle, blob);
+        return true;
+    }
+
+    /**
+     * データを新規ファイルとして保存（別名で保存）
+     * 常にダイアログを表示
+     * @param {string|Blob} data - 保存するデータ
+     * @param {string} filename - 推奨ファイル名
+     * @param {string} mimeType - MIMEタイプ
+     * @returns {Promise<boolean>} 保存成功したか（キャンセル時はfalse）
+     * @throws {Error} File System Access API非対応の場合
+     */
+    async saveAs(data, filename, mimeType = 'application/json') {
+        if (!this.supportsFSA) {
+            throw new Error('このブラウザはFile System Access APIに対応していません');
+        }
+
+        const blob = data instanceof Blob ? data : new Blob([data], { type: mimeType });
+
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: filename,
+                types: this._getFileTypes(filename)
+            });
+            await this._writeToHandle(handle, blob);
+            this.currentFileHandle = handle; // ハンドルを保存
+            return true;
+        } catch (e) {
+            if (e.name === 'AbortError') {
+                return false; // ユーザーキャンセル
+            }
+            throw e; // その他のエラーは伝播
+        }
+    }
+
+    /**
+     * @deprecated saveFile は廃止。save() または saveAs() を使用してください。
+     */
+    async saveFile(data, filename, mimeType = 'application/json', forceNewFile = false) {
+        console.warn('[FileManager] saveFile() is deprecated. Use save() or saveAs() instead.');
+
+        // 互換性のため一時的に残す
+        if (forceNewFile || !this.currentFileHandle) {
+            return this.saveAs(data, filename, mimeType);
+        }
+        return this.save(data, mimeType);
+    }
+
+    /**
+     * ファイルハンドルに書き込み
+     * @private
+     * @param {FileSystemFileHandle} handle
+     * @param {Blob} blob
+     */
+    async _writeToHandle(handle, blob) {
         const writable = await handle.createWritable();
         await writable.write(blob);
         await writable.close();
     }
 
     /**
-     * ファイルピッカーでファイルを選択
+     * ファイルピッカーでファイルを選択（File System Access API使用）
      * @param {Object} options - ファイルピッカーのオプション
-     * @returns {Promise<File|null>}
+     * @param {boolean} options.storeHandle - ファイルハンドルを保存するか（プロジェクトファイル用）
+     * @returns {Promise<File|null>} 選択されたファイル、キャンセル時はnull
+     * @throws {Error} File System Access API非対応の場合
      */
     async openFilePicker(options = {}) {
-        // File System Access API が使える場合はそちらを優先（最後のディレクトリを記憶）
-        if (this.supportsFSA && !options.multiple) {
-            try {
-                const pickerOptions = {
-                    types: this._getFileTypesForOpen(options.accept)
-                };
-                const [handle] = await window.showOpenFilePicker(pickerOptions);
-                return await handle.getFile();
-            } catch (e) {
-                if (e.name === 'AbortError') {
-                    return null; // ユーザーキャンセル
-                }
-                // フォールバック
-            }
+        if (!this.supportsFSA) {
+            throw new Error('このブラウザはFile System Access APIに対応していません');
         }
 
-        // 従来のinput要素を使ったファイル選択
-        return new Promise((resolve) => {
-            const input = document.createElement('input');
-            input.type = 'file';
-            if (options.accept) {
-                input.accept = options.accept;
-            }
-            if (options.multiple) {
-                input.multiple = true;
-            }
-            input.onchange = (e) => {
-                const files = e.target.files;
-                resolve(options.multiple ? Array.from(files) : files[0] || null);
+        if (options.multiple) {
+            throw new Error('複数ファイル選択は現在サポートされていません');
+        }
+
+        try {
+            const pickerOptions = {
+                types: this._getFileTypesForOpen(options.accept)
             };
-            input.click();
-        });
+            const [handle] = await window.showOpenFilePicker(pickerOptions);
+
+            // プロジェクトファイルの場合はハンドルを保存
+            if (options.storeHandle) {
+                this.currentFileHandle = handle;
+                console.log('[FileManager] File handle stored for:', handle.name);
+            }
+
+            return await handle.getFile();
+        } catch (e) {
+            if (e.name === 'AbortError') {
+                return null; // ユーザーキャンセル
+            }
+            throw e; // その他のエラーは伝播
+        }
     }
 
     /**

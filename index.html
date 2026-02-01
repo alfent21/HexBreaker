@@ -30,6 +30,10 @@
                         <span>保存</span>
                         <span class="shortcut">Ctrl+S</span>
                     </div>
+                    <div class="menu-dropdown-item" id="menu-save-as">
+                        <span>別名で保存</span>
+                        <span class="shortcut">Ctrl+Shift+S</span>
+                    </div>
                     <div class="context-menu-separator"></div>
                     <div class="menu-dropdown-item" id="menu-export">
                         <span>エクスポート</span>
@@ -144,20 +148,22 @@
             <div class="panel-section">
                 <div class="panel-title">ツール</div>
                 <div class="tool-palette" id="tool-palette">
+                    <!-- Row 1: ペン、消しゴム、線分 -->
                     <button class="tool-btn active" id="tool-brush" data-tooltip="ブラシ (B)">
                         <i class="fas fa-paint-brush"></i>
                     </button>
                     <button class="tool-btn" id="tool-eraser" data-tooltip="消しゴム (E)">
                         <i class="fas fa-eraser"></i>
                     </button>
-                    <button class="tool-btn" id="tool-fill" data-tooltip="塗りつぶし (G)">
-                        <i class="fas fa-fill-drip"></i>
+                    <button class="tool-btn" id="tool-line" data-tooltip="ライン (L)">
+                        <i class="fas fa-bezier-curve"></i>
                     </button>
+                    <!-- Row 2: 選択、塗りつぶし、スポイト -->
                     <button class="tool-btn" id="tool-select" data-tooltip="選択 (V)">
                         <i class="fas fa-mouse-pointer"></i>
                     </button>
-                    <button class="tool-btn" id="tool-line" data-tooltip="ライン (L)">
-                        <i class="fas fa-bezier-curve"></i>
+                    <button class="tool-btn" id="tool-fill" data-tooltip="塗りつぶし (G)">
+                        <i class="fas fa-fill-drip"></i>
                     </button>
                     <button class="tool-btn" id="tool-eyedropper" data-tooltip="スポイト (I)">
                         <i class="fas fa-eye-dropper"></i>
@@ -201,24 +207,68 @@
                 </div>
             </div>
 
+            <!-- Block Render Settings (collapsible) -->
+            <div class="panel-section collapsible">
+                <div class="panel-title collapsible-header" id="block-render-toggle">
+                    <span>ブロック描画設定</span>
+                    <span class="collapse-icon">▼</span>
+                </div>
+                <div class="collapsible-content" id="block-render-content">
+                    <div class="form-group">
+                        <label class="label">境界線の色</label>
+                        <input type="color" class="color-picker" id="border-color" value="#ffffff">
+                    </div>
+                    <div class="form-group">
+                        <label class="label">境界線の太さ <span id="border-width-value">3</span>%</label>
+                        <input type="range" class="slider" id="border-width" value="3" min="0" max="10" step="0.5">
+                    </div>
+                    <div class="form-group">
+                        <label class="label">エンボス ハイライト色</label>
+                        <input type="color" class="color-picker" id="emboss-highlight-color" value="#ffffff">
+                    </div>
+                    <div class="form-group">
+                        <label class="label">ハイライト不透明度 <span id="emboss-highlight-opacity-value">50</span>%</label>
+                        <input type="range" class="slider" id="emboss-highlight-opacity" value="50" min="0" max="100" step="5">
+                    </div>
+                    <div class="form-group">
+                        <label class="label">エンボス シャドウ色</label>
+                        <input type="color" class="color-picker" id="emboss-shadow-color" value="#000000">
+                    </div>
+                    <div class="form-group">
+                        <label class="label">シャドウ不透明度 <span id="emboss-shadow-opacity-value">40</span>%</label>
+                        <input type="range" class="slider" id="emboss-shadow-opacity" value="40" min="0" max="100" step="5">
+                    </div>
+                    <div class="form-group">
+                        <label class="label">エンボス太さ <span id="emboss-width-value">8</span>%</label>
+                        <input type="range" class="slider" id="emboss-width" value="8" min="0" max="20" step="1">
+                    </div>
+                    <div class="form-group">
+                        <label class="label">エンボス内側距離 <span id="emboss-inset-value">10</span>%</label>
+                        <input type="range" class="slider" id="emboss-inset" value="10" min="5" max="30" step="1">
+                    </div>
+                </div>
+            </div>
+
             <div class="divider"></div>
 
             <!-- Line Properties -->
             <div class="panel-section">
                 <div class="panel-title">ライン設定</div>
-                <div class="form-group line-type-selector">
+                <div class="line-type-selector">
                     <button class="line-type-btn active" data-type="collision">壁</button>
                     <button class="line-type-btn" data-type="paddle">パドル</button>
                     <button class="line-type-btn" data-type="missline">ミス</button>
                     <button class="line-type-btn" data-type="decoration">装飾</button>
                 </div>
-                <div class="form-group">
-                    <label class="label">色</label>
-                    <input type="color" class="color-picker" id="line-color" value="#FFFF00">
-                </div>
-                <div class="form-group">
-                    <label class="label">太さ</label>
-                    <input type="number" class="input input--small" id="line-thickness" value="3" min="1" max="20">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="label">色</label>
+                        <input type="color" class="color-picker" id="line-color" value="#FFFF00">
+                    </div>
+                    <div class="form-group">
+                        <label class="label">太さ</label>
+                        <input type="number" class="input input--small" id="line-thickness" value="3" min="1" max="20">
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="label">不透明度</label>

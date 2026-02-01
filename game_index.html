@@ -28,8 +28,15 @@
                     <span class="life-icon">❤️</span>
                 </div>
             </div>
-            <!-- メッセージ (一時表示) -->
-            <div class="header-message" id="header-message"></div>
+            <!-- メッセージ (スタック表示) -->
+            <div class="header-message-container" id="header-message-container">
+                <div class="header-message-stack" id="header-message-stack">
+                    <!-- Messages will be added here dynamically -->
+                </div>
+                <div class="header-message-actions">
+                    <button class="header-message-copy-all" id="header-message-copy-all" title="全履歴をコピー">📋全部</button>
+                </div>
+            </div>
         </header>
 
         <!-- Main: ゲームキャンバス -->

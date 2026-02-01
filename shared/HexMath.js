@@ -219,3 +219,48 @@ export function hexDistance(row1, col1, row2, col2) {
 
     return Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2), Math.abs(z1 - z2));
 }
+
+/**
+ * Calculate the maximum valid row index for a given canvas height
+ * @param {number} canvasHeight - Canvas height in pixels
+ * @param {Object} gridSize - Grid size config
+ * @returns {number} Maximum row index (0-based)
+ */
+export function getMaxRow(canvasHeight, gridSize) {
+    const { radius, verticalSpacing } = gridSize;
+    // Hex center.y = row * verticalSpacing + radius
+    // For center.y to be within canvas: row * verticalSpacing + radius <= canvasHeight
+    // row <= (canvasHeight - radius) / verticalSpacing
+    return Math.floor((canvasHeight - radius) / verticalSpacing);
+}
+
+/**
+ * Calculate the maximum valid column index for a given canvas width
+ * @param {number} canvasWidth - Canvas width in pixels
+ * @param {Object} gridSize - Grid size config
+ * @returns {number} Maximum column index (0-based)
+ */
+export function getMaxCol(canvasWidth, gridSize) {
+    const { width } = gridSize;
+    // For odd rows, center.x = col * width + width/2 + width/2 = col * width + width
+    // For even rows, center.x = col * width + width/2
+    // Worst case (odd row): col * width + width <= canvasWidth
+    // col <= (canvasWidth - width) / width
+    return Math.floor((canvasWidth - width) / width);
+}
+
+/**
+ * Check if a hex position is within valid canvas bounds
+ * @param {number} row - Row index
+ * @param {number} col - Column index
+ * @param {number} canvasWidth - Canvas width in pixels
+ * @param {number} canvasHeight - Canvas height in pixels
+ * @param {Object} gridSize - Grid size config
+ * @returns {boolean} True if position is valid
+ */
+export function isValidHexPosition(row, col, canvasWidth, canvasHeight, gridSize) {
+    if (row < 0 || col < 0) return false;
+    const maxRow = getMaxRow(canvasHeight, gridSize);
+    const maxCol = getMaxCol(canvasWidth, gridSize);
+    return row <= maxRow && col <= maxCol;
+}
