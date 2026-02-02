@@ -17,12 +17,13 @@ export const SnapHelper = {
      */
     getSnapPoint(x, y, editor) {
         const SNAP_DISTANCE = 15;
-        const stage = editor.stageManager?.currentStage;
+        const stage = editor.stageManager?.getCurrentStage();
         if (!stage) return { x, y, snapped: false };
 
-        const canvasWidth = stage.width;
-        const canvasHeight = stage.height;
+        const canvasWidth = stage.canvas?.width || stage.width;
+        const canvasHeight = stage.canvas?.height || stage.height;
         const gridSize = editor.renderSystem?.gridSize;
+        const forceGridSnap = editor.gridSnapEnabled;
 
         // 1. 画面端スナップ（優先）
         const edgeSnap = this.getEdgeSnapPoint(x, y, canvasWidth, canvasHeight);
@@ -33,10 +34,17 @@ export const SnapHelper = {
         const lineSnap = this.getLinePointSnapPoint(x, y, lines, SNAP_DISTANCE);
         if (lineSnap) return lineSnap;
 
-        // 3. ヘックス頂点スナップ
+        // 3. ヘックス頂点スナップ（強制モードまたは閾値内）
         if (gridSize) {
-            const hexSnap = this.getHexVertexSnapPoint(x, y, gridSize, SNAP_DISTANCE);
-            if (hexSnap) return hexSnap;
+            if (forceGridSnap) {
+                // 強制スナップ: 最も近い頂点に必ずスナップ
+                const hexSnap = this.getNearestHexVertex(x, y, gridSize);
+                if (hexSnap) return hexSnap;
+            } else {
+                // 従来の閾値内スナップ
+                const hexSnap = this.getHexVertexSnapPoint(x, y, gridSize, SNAP_DISTANCE);
+                if (hexSnap) return hexSnap;
+            }
         }
 
         // スナップなし
@@ -97,6 +105,50 @@ export const SnapHelper = {
                     const dist = Math.hypot(v.x - x, v.y - y);
 
                     if (dist < snapDistance && dist < minDist) {
+                        minDist = dist;
+                        snapPoint = {
+                            x: v.x,
+                            y: v.y,
+                            snapped: true,
+                            snapType: 'hexVertex',
+                            vertex: { row, col, vertexIndex: i }
+                        };
+                    }
+                }
+            }
+        }
+
+        return snapPoint;
+    },
+
+    /**
+     * 最も近いヘックス頂点を取得（強制スナップ用）
+     * @param {number} x - X座標
+     * @param {number} y - Y座標
+     * @param {Object} gridSize - グリッドサイズ設定
+     * @returns {{x: number, y: number, snapped: boolean, snapType: string, vertex: Object}|null}
+     */
+    getNearestHexVertex(x, y, gridSize) {
+        const hex = pixelToHex(x, y, gridSize);
+
+        let minDist = Infinity;
+        let snapPoint = null;
+
+        // 近傍のヘックスを検索（3x3グリッド）
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                const row = hex.row + dr;
+                const col = hex.col + dc;
+                if (row < 0 || col < 0) continue;
+
+                const pos = hexToPixel(row, col, gridSize);
+                const vertices = getHexVertices(pos.x, pos.y, gridSize.radius);
+
+                for (let i = 0; i < 6; i++) {
+                    const v = vertices[i];
+                    const dist = Math.hypot(v.x - x, v.y - y);
+
+                    if (dist < minDist) {
                         minDist = dist;
                         snapPoint = {
                             x: v.x,

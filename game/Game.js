@@ -657,12 +657,30 @@ export class Game {
         const lineHit = this.collision.checkLineCollision(ball, lines);
         if (!lineHit.hit) return;
 
+        // Prevent rapid repeated collisions with the same line
+        const lineId = lineHit.line.id || lineHit.segmentIndex;
+        const now = performance.now();
+        const cooldown = 50; // ms - minimum time between collisions with same line
+
+        if (ball.lastLineHitId === lineId && (now - ball.lastLineHitTime) < cooldown) {
+            return; // Skip this collision - too soon after previous hit on same line
+        }
+
+        // Record this collision
+        ball.lastLineHitId = lineId;
+        ball.lastLineHitTime = now;
+
         // Reflect ball off the line
         ball.reflect(lineHit.normal.x, lineHit.normal.y);
 
-        // Push ball away from line to prevent multiple collisions
-        ball.x += lineHit.normal.x * 2;
-        ball.y += lineHit.normal.y * 2;
+        // Calculate proper push distance based on collision threshold
+        const lineThickness = lineHit.line.thickness || 3;
+        const hitThreshold = ball.radius + lineThickness / 2;
+        const pushDistance = hitThreshold + 2; // Push beyond collision threshold
+
+        // Push ball away from line to prevent re-collision
+        ball.x += lineHit.normal.x * pushDistance;
+        ball.y += lineHit.normal.y * pushDistance;
 
         // Apply Block Guide (primary ball only)
         if (ballIndex === 0) {

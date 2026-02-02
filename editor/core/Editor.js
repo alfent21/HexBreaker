@@ -46,6 +46,7 @@ export class Editor {
         this.projectName = 'Untitled Project';
         this.isDirty = false;
         this.isInitialized = false;
+        this.gridSnapEnabled = true; // グリッド頂点への強制スナップ
 
         // Event emitter
         this._eventHandlers = {};

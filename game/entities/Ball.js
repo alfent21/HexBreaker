@@ -17,6 +17,10 @@ export class Ball {
         this.color = '#FFFFFF';
         this.trail = []; // For visual trail effect
         this.active = true; // Ball is active
+
+        // Collision tracking to prevent repeated collisions
+        this.lastLineHitId = null;
+        this.lastLineHitTime = 0;
     }
 
     /**

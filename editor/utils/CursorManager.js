@@ -66,14 +66,11 @@ export class CursorManager {
     }
 
     /**
-     * Generate brush cursor (circle matching hex size)
+     * Generate brush cursor (simple dot)
      * @private
      */
     _generateBrushCursor(gridSize) {
-        const radius = gridSize.radius;
-        // Scale cursor size (max 32px for usability)
-        const cursorRadius = Math.min(radius, 16);
-        const size = cursorRadius * 2 + 4;
+        const size = 16;
         const center = size / 2;
 
         const canvas = document.createElement('canvas');
@@ -81,41 +78,27 @@ export class CursorManager {
         canvas.height = size;
         const ctx = canvas.getContext('2d');
 
-        // Draw hexagon outline
-        ctx.strokeStyle = '#00ffff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        for (let i = 0; i < 6; i++) {
-            const angle = (Math.PI / 3) * i - Math.PI / 2;
-            const x = center + cursorRadius * Math.cos(angle);
-            const y = center + cursorRadius * Math.sin(angle);
-            if (i === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
-            }
-        }
-        ctx.closePath();
-        ctx.stroke();
-
-        // Draw center dot
+        // シンプルなドット（青緑）
         ctx.fillStyle = '#00ffff';
         ctx.beginPath();
-        ctx.arc(center, center, 2, 0, Math.PI * 2);
+        ctx.arc(center, center, 3, 0, Math.PI * 2);
         ctx.fill();
+
+        // 外枠（視認性向上）
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1;
+        ctx.stroke();
 
         const dataUrl = canvas.toDataURL();
         return `url(${dataUrl}) ${center} ${center}, crosshair`;
     }
 
     /**
-     * Generate eraser cursor (circle with X)
+     * Generate eraser cursor (simple dot)
      * @private
      */
     _generateEraserCursor(gridSize) {
-        const radius = gridSize.radius;
-        const cursorRadius = Math.min(radius, 16);
-        const size = cursorRadius * 2 + 4;
+        const size = 16;
         const center = size / 2;
 
         const canvas = document.createElement('canvas');
@@ -123,20 +106,15 @@ export class CursorManager {
         canvas.height = size;
         const ctx = canvas.getContext('2d');
 
-        // Draw circle
-        ctx.strokeStyle = '#ff4444';
-        ctx.lineWidth = 2;
+        // シンプルなドット（赤）
+        ctx.fillStyle = '#ff4444';
         ctx.beginPath();
-        ctx.arc(center, center, cursorRadius, 0, Math.PI * 2);
-        ctx.stroke();
+        ctx.arc(center, center, 3, 0, Math.PI * 2);
+        ctx.fill();
 
-        // Draw X
-        const xSize = cursorRadius * 0.6;
-        ctx.beginPath();
-        ctx.moveTo(center - xSize, center - xSize);
-        ctx.lineTo(center + xSize, center + xSize);
-        ctx.moveTo(center + xSize, center - xSize);
-        ctx.lineTo(center - xSize, center + xSize);
+        // 外枠（視認性向上）
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1;
         ctx.stroke();
 
         const dataUrl = canvas.toDataURL();

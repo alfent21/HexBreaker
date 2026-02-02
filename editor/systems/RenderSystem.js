@@ -197,7 +197,8 @@ export class RenderSystem {
         ctx.scale(this.scale, this.scale);
 
         // Draw hover hex(es) - use brush size for brush/eraser tools
-        if (this.hoverHex) {
+        // LINE ツール選択時はホバーハイライトをスキップ（グリッドスナップで頂点に合わせるため）
+        if (this.hoverHex && this.currentTool !== TOOLS.LINE) {
             const useBrushSize = this.currentTool === TOOLS.BRUSH ||
                                  this.currentTool === TOOLS.ERASER;
             const color = this.isErasing ? SELECTION_COLORS.eraser : SELECTION_COLORS.hover;

@@ -15,6 +15,7 @@ export class UIController {
      */
     constructor(editor) {
         this.editor = editor;
+        this.editor.uiController = this;
 
         // UI element references
         this.elements = {};
@@ -87,6 +88,7 @@ export class UIController {
             lineThickness: document.getElementById('line-thickness'),
             lineOpacity: document.getElementById('line-opacity'),
             paddleControl: document.getElementById('paddle-control'),
+            gridSnap: document.getElementById('grid-snap'),
 
             // Layer panel
             layerList: document.getElementById('layer-list'),
@@ -301,6 +303,11 @@ export class UIController {
             if (selectedLine) {
                 this.editor.lineManager.updateLine(selectedLine.id, { opacity });
             }
+        });
+
+        // Grid snap toggle
+        this.elements.gridSnap?.addEventListener('change', (e) => {
+            this.editor.gridSnapEnabled = e.target.checked;
         });
 
         // Layer buttons
