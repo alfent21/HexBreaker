@@ -8,6 +8,10 @@
 import { TOOLS, BRUSH_SIZES, LINE_TYPES, DURABILITY_COLORS, MESSAGE_TYPES } from '../core/Config.js';
 import { dialogService } from './DialogService.js';
 import { RENDER_CONFIG } from '../../shared/Renderer.js';
+import { MessageController } from './controllers/MessageController.js';
+import { BlockRenderSettingsController } from './controllers/BlockRenderSettingsController.js';
+import { BlockifyController } from './controllers/BlockifyController.js';
+import { ContextMenuController } from './controllers/ContextMenuController.js';
 
 export class UIController {
     /**
@@ -20,9 +24,23 @@ export class UIController {
         // UI element references
         this.elements = {};
 
-        // Message queue
-        this.messages = [];
-        this.maxMessages = 50;
+        // Sub-controllers
+        this.messageController = new MessageController(editor);
+        this.blockRenderSettingsController = new BlockRenderSettingsController(
+            editor,
+            (type, text) => this._addMessage(type, text)
+        );
+        this.blockifyController = new BlockifyController(
+            editor,
+            (type, text) => this._addMessage(type, text),
+            () => this._updateLayerList()
+        );
+        this.contextMenuController = new ContextMenuController(
+            editor,
+            (type, text) => this._addMessage(type, text),
+            () => this._updateLayerList(),
+            (layerId) => this.showBlockifyDialog(layerId)
+        );
     }
 
     /**
@@ -30,6 +48,61 @@ export class UIController {
      */
     init() {
         this._cacheElements();
+
+        // Initialize sub-controllers
+        this.messageController.init({
+            messageList: this.elements.messageList,
+            copyMessagesBtn: this.elements.copyMessagesBtn,
+            clearMessagesBtn: this.elements.clearMessagesBtn
+        });
+
+        this.blockRenderSettingsController.init({
+            blockRenderToggle: this.elements.blockRenderToggle,
+            blockRenderContent: this.elements.blockRenderContent,
+            fillUseBlockColor: this.elements.fillUseBlockColor,
+            fillColor: this.elements.fillColor,
+            fillColorGroup: this.elements.fillColorGroup,
+            fillOpacity: this.elements.fillOpacity,
+            fillOpacityValue: this.elements.fillOpacityValue,
+            borderColor: this.elements.borderColor,
+            borderWidth: this.elements.borderWidth,
+            borderWidthValue: this.elements.borderWidthValue,
+            embossHighlightColor: this.elements.embossHighlightColor,
+            embossHighlightOpacity: this.elements.embossHighlightOpacity,
+            embossHighlightOpacityValue: this.elements.embossHighlightOpacityValue,
+            embossShadowColor: this.elements.embossShadowColor,
+            embossShadowOpacity: this.elements.embossShadowOpacity,
+            embossShadowOpacityValue: this.elements.embossShadowOpacityValue,
+            embossWidth: this.elements.embossWidth,
+            embossWidthValue: this.elements.embossWidthValue,
+            embossInset: this.elements.embossInset,
+            embossInsetValue: this.elements.embossInsetValue
+        });
+
+        this.blockifyController.init({
+            blockifyDialog: this.elements.blockifyDialog,
+            blockifySourceSelect: this.elements.blockifySourceSelect,
+            blockifyGridSize: this.elements.blockifyGridSize,
+            blockifyAlphaThreshold: this.elements.blockifyAlphaThreshold,
+            blockifyAlphaValue: this.elements.blockifyAlphaValue,
+            blockifyCoverageThreshold: this.elements.blockifyCoverageThreshold,
+            blockifyCoverageValue: this.elements.blockifyCoverageValue,
+            blockifyDurability: this.elements.blockifyDurability,
+            blockifyUseImageColor: this.elements.blockifyUseImageColor,
+            blockifyDefaultColor: this.elements.blockifyDefaultColor,
+            blockifyTargetSelect: this.elements.blockifyTargetSelect,
+            blockifyMergeBlocks: this.elements.blockifyMergeBlocks,
+            blockifyPreviewCount: this.elements.blockifyPreviewCount,
+            blockifyCancelBtn: this.elements.blockifyCancelBtn,
+            blockifyCreateBtn: this.elements.blockifyCreateBtn,
+            blockifyCloseBtn: this.elements.blockifyCloseBtn
+        });
+
+        this.contextMenuController.init({
+            contextMenu: this.elements.contextMenu,
+            layerList: this.elements.layerList
+        });
+
         this._bindUIEvents();
         this._bindEditorEvents();
         this._initToolbar();
@@ -40,7 +113,7 @@ export class UIController {
         this._updateStageSelector();
         this._updateStageList();
 
-        console.log('UI Controller initialized');
+        this._addMessage('info', 'UI Controller initialized');
     }
 
     /**
@@ -326,18 +399,10 @@ export class UIController {
             }
         });
 
-        // Message panel
-        this.elements.copyMessagesBtn?.addEventListener('click', () => this._copyAllMessages());
-        this.elements.clearMessagesBtn?.addEventListener('click', () => this._clearMessages());
-
-        // Block render settings
-        this._bindBlockRenderSettingsEvents();
-
-        // Blockify dialog
-        this._bindBlockifyDialogEvents();
-
-        // Context menu
-        this._bindContextMenuEvents();
+        // Note: Message panel events are handled by MessageController
+        // Note: Block render settings events are handled by BlockRenderSettingsController
+        // Note: Blockify dialog events are handled by BlockifyController
+        // Note: Context menu events are handled by ContextMenuController
     }
 
     /**
@@ -352,7 +417,7 @@ export class UIController {
         this.editor.on('lineSelected', (line) => this._updateLinePropertiesUI(line));
         this.editor.on('durabilityChanged', () => this._updateDurabilityUI());
         this.editor.on('brushSizeChanged', () => this._updateBrushSizeUI());
-        this.editor.on('message', (msg) => this._addMessage(msg.type, msg.text));
+        // Note: 'message' event is handled by MessageController
 
         // Stage events
         this.editor.on('stagesChanged', () => {
@@ -615,81 +680,12 @@ export class UIController {
     }
 
     /**
-     * Add message to message panel
-     * @private
+     * Add message to message panel (delegates to MessageController)
+     * @param {string} type - Message type
+     * @param {string} text - Message text
      */
     _addMessage(type, text) {
-        const typeConfig = MESSAGE_TYPES[type.toUpperCase()] || MESSAGE_TYPES.INFO;
-
-        const message = {
-            type,
-            text,
-            time: new Date().toLocaleTimeString()
-        };
-
-        this.messages.push(message);
-        if (this.messages.length > this.maxMessages) {
-            this.messages.shift();
-        }
-
-        this._renderMessages();
-    }
-
-    /**
-     * Render messages
-     * @private
-     */
-    _renderMessages() {
-        const list = this.elements.messageList;
-        if (!list) return;
-
-        list.innerHTML = '';
-
-        for (const msg of this.messages.slice(-10)) {
-            const typeConfig = MESSAGE_TYPES[msg.type.toUpperCase()] || MESSAGE_TYPES.INFO;
-            const div = document.createElement('div');
-            div.className = `message ${typeConfig.className}`;
-            div.innerHTML = `<span class="message-icon">${typeConfig.icon}</span><span class="message-text">${msg.text}</span><span class="message-time">${msg.time}</span><button class="message-copy-btn" title="コピー">📋</button>`;
-
-            // Add copy button click handler
-            const copyBtn = div.querySelector('.message-copy-btn');
-            copyBtn.addEventListener('click', () => {
-                navigator.clipboard.writeText(msg.text).then(() => {
-                    copyBtn.textContent = '✓';
-                    setTimeout(() => { copyBtn.textContent = '📋'; }, 1000);
-                });
-            });
-
-            list.appendChild(div);
-        }
-
-        // Scroll to bottom
-        list.scrollTop = list.scrollHeight;
-    }
-
-    /**
-     * Clear all messages
-     * @private
-     */
-    _clearMessages() {
-        this.messages = [];
-        this._renderMessages();
-    }
-
-    /**
-     * Copy all messages to clipboard
-     * @private
-     */
-    _copyAllMessages() {
-        const text = this.messages.map(msg => `[${msg.time}] ${msg.text}`).join('\n');
-        navigator.clipboard.writeText(text).then(() => {
-            const btn = this.elements.copyMessagesBtn;
-            if (btn) {
-                const original = btn.textContent;
-                btn.textContent = '✓';
-                setTimeout(() => { btn.textContent = original; }, 1000);
-            }
-        });
+        this.messageController.addMessage(type, text);
     }
 
     // =========================================
@@ -888,239 +884,15 @@ export class UIController {
     }
 
     // =========================================
-    // Block Render Settings Methods
+    // Block Render Settings Methods (delegated to BlockRenderSettingsController)
     // =========================================
-
-    /**
-     * Bind block render settings events
-     * @private
-     */
-    _bindBlockRenderSettingsEvents() {
-        // 必須要素の検証（存在しなければエラーを出力）
-        const requiredElements = [
-            'blockRenderToggle',
-            'fillUseBlockColor', 'fillColor', 'fillOpacity', 'fillOpacityValue',
-            'borderColor', 'borderWidth', 'borderWidthValue',
-            'embossHighlightColor', 'embossHighlightOpacity', 'embossHighlightOpacityValue',
-            'embossShadowColor', 'embossShadowOpacity', 'embossShadowOpacityValue',
-            'embossWidth', 'embossWidthValue', 'embossInset', 'embossInsetValue'
-        ];
-
-        for (const name of requiredElements) {
-            if (!this.elements[name]) {
-                this._addMessage('error', `[UIController] 要素が見つかりません: ${name}`);
-            }
-        }
-
-        // Collapsible toggle
-        if (this.elements.blockRenderToggle) {
-            this.elements.blockRenderToggle.addEventListener('click', () => {
-                const section = this.elements.blockRenderToggle.closest('.collapsible');
-                if (section) section.classList.toggle('collapsed');
-            });
-        }
-
-        // Fill: Use block color checkbox
-        if (this.elements.fillUseBlockColor) {
-            this.elements.fillUseBlockColor.addEventListener('change', (e) => {
-                const useBlockColor = e.target.checked;
-                RENDER_CONFIG.block.fill.color = useBlockColor ? null : this.elements.fillColor.value;
-                if (this.elements.fillColor) {
-                    this.elements.fillColor.disabled = useBlockColor;
-                }
-                this.editor.render();
-            });
-        }
-
-        // Fill color
-        if (this.elements.fillColor) {
-            this.elements.fillColor.addEventListener('input', (e) => {
-                if (this.elements.fillUseBlockColor && !this.elements.fillUseBlockColor.checked) {
-                    RENDER_CONFIG.block.fill.color = e.target.value;
-                    this.editor.render();
-                }
-            });
-        }
-
-        // Fill opacity
-        if (this.elements.fillOpacity) {
-            this.elements.fillOpacity.addEventListener('input', (e) => {
-                const value = parseInt(e.target.value);
-                RENDER_CONFIG.block.fill.opacity = value / 100;
-                if (this.elements.fillOpacityValue) {
-                    this.elements.fillOpacityValue.textContent = value;
-                }
-                this.editor.render();
-            });
-        }
-
-        // Border color
-        if (this.elements.borderColor) {
-            this.elements.borderColor.addEventListener('input', (e) => {
-                RENDER_CONFIG.block.border.color = e.target.value;
-                this.editor.render();
-            });
-        }
-
-        // Border width
-        if (this.elements.borderWidth) {
-            this.elements.borderWidth.addEventListener('input', (e) => {
-                const value = parseFloat(e.target.value);
-                RENDER_CONFIG.block.border.widthRatio = value / 100;
-                if (this.elements.borderWidthValue) {
-                    this.elements.borderWidthValue.textContent = value;
-                }
-                this.editor.render();
-            });
-        }
-
-        // Emboss highlight color
-        if (this.elements.embossHighlightColor) {
-            this.elements.embossHighlightColor.addEventListener('input', (e) => {
-                RENDER_CONFIG.block.emboss.highlightColor = e.target.value;
-                this.editor.render();
-            });
-        }
-
-        // Emboss highlight opacity
-        if (this.elements.embossHighlightOpacity) {
-            this.elements.embossHighlightOpacity.addEventListener('input', (e) => {
-                const value = parseInt(e.target.value);
-                RENDER_CONFIG.block.emboss.highlightOpacity = value / 100;
-                if (this.elements.embossHighlightOpacityValue) {
-                    this.elements.embossHighlightOpacityValue.textContent = value;
-                }
-                this.editor.render();
-            });
-        }
-
-        // Emboss shadow color
-        if (this.elements.embossShadowColor) {
-            this.elements.embossShadowColor.addEventListener('input', (e) => {
-                RENDER_CONFIG.block.emboss.shadowColor = e.target.value;
-                this.editor.render();
-            });
-        }
-
-        // Emboss shadow opacity
-        if (this.elements.embossShadowOpacity) {
-            this.elements.embossShadowOpacity.addEventListener('input', (e) => {
-                const value = parseInt(e.target.value);
-                RENDER_CONFIG.block.emboss.shadowOpacity = value / 100;
-                if (this.elements.embossShadowOpacityValue) {
-                    this.elements.embossShadowOpacityValue.textContent = value;
-                }
-                this.editor.render();
-            });
-        }
-
-        // Emboss width
-        if (this.elements.embossWidth) {
-            this.elements.embossWidth.addEventListener('input', (e) => {
-                const value = parseInt(e.target.value);
-                RENDER_CONFIG.block.emboss.lineWidthRatio = value / 100;
-                if (this.elements.embossWidthValue) {
-                    this.elements.embossWidthValue.textContent = value;
-                }
-                this.editor.render();
-            });
-        }
-
-        // Emboss inset
-        if (this.elements.embossInset) {
-            this.elements.embossInset.addEventListener('input', (e) => {
-                const value = parseInt(e.target.value);
-                RENDER_CONFIG.block.emboss.insetRatio = value / 100;
-                if (this.elements.embossInsetValue) {
-                    this.elements.embossInsetValue.textContent = value;
-                }
-                this.editor.render();
-            });
-        }
-    }
-
-    /**
-     * Update block render settings UI from current RENDER_CONFIG
-     * @private
-     */
-    _updateBlockRenderSettingsUI() {
-        const fill = RENDER_CONFIG.block.fill;
-        const border = RENDER_CONFIG.block.border;
-        const emboss = RENDER_CONFIG.block.emboss;
-
-        // Fill settings
-        if (this.elements.fillUseBlockColor) {
-            this.elements.fillUseBlockColor.checked = fill.color === null;
-        }
-        if (this.elements.fillColor) {
-            this.elements.fillColor.value = fill.color || '#888888';
-            this.elements.fillColor.disabled = fill.color === null;
-        }
-        if (this.elements.fillOpacity) {
-            const value = Math.round(fill.opacity * 100);
-            this.elements.fillOpacity.value = value;
-            if (this.elements.fillOpacityValue) {
-                this.elements.fillOpacityValue.textContent = value;
-            }
-        }
-
-        // Border settings
-        if (this.elements.borderColor) {
-            this.elements.borderColor.value = border.color;
-        }
-        if (this.elements.borderWidth) {
-            const value = Math.round(border.widthRatio * 100);
-            this.elements.borderWidth.value = value;
-            if (this.elements.borderWidthValue) {
-                this.elements.borderWidthValue.textContent = value;
-            }
-        }
-        if (this.elements.embossHighlightColor) {
-            this.elements.embossHighlightColor.value = emboss.highlightColor;
-        }
-        if (this.elements.embossHighlightOpacity) {
-            const value = Math.round(emboss.highlightOpacity * 100);
-            this.elements.embossHighlightOpacity.value = value;
-            if (this.elements.embossHighlightOpacityValue) {
-                this.elements.embossHighlightOpacityValue.textContent = value;
-            }
-        }
-        if (this.elements.embossShadowColor) {
-            this.elements.embossShadowColor.value = emboss.shadowColor;
-        }
-        if (this.elements.embossShadowOpacity) {
-            const value = Math.round(emboss.shadowOpacity * 100);
-            this.elements.embossShadowOpacity.value = value;
-            if (this.elements.embossShadowOpacityValue) {
-                this.elements.embossShadowOpacityValue.textContent = value;
-            }
-        }
-        if (this.elements.embossWidth) {
-            const value = Math.round(emboss.lineWidthRatio * 100);
-            this.elements.embossWidth.value = value;
-            if (this.elements.embossWidthValue) {
-                this.elements.embossWidthValue.textContent = value;
-            }
-        }
-        if (this.elements.embossInset) {
-            const value = Math.round(emboss.insetRatio * 100);
-            this.elements.embossInset.value = value;
-            if (this.elements.embossInsetValue) {
-                this.elements.embossInsetValue.textContent = value;
-            }
-        }
-    }
 
     /**
      * Get current block render settings
      * @returns {Object}
      */
     getBlockRenderSettings() {
-        return {
-            fill: { ...RENDER_CONFIG.block.fill },
-            border: { ...RENDER_CONFIG.block.border },
-            emboss: { ...RENDER_CONFIG.block.emboss }
-        };
+        return this.blockRenderSettingsController.getSettings();
     }
 
     /**
@@ -1128,495 +900,21 @@ export class UIController {
      * @param {Object} settings
      */
     applyBlockRenderSettings(settings) {
-        if (settings?.fill) {
-            Object.assign(RENDER_CONFIG.block.fill, settings.fill);
-        }
-        if (settings?.border) {
-            Object.assign(RENDER_CONFIG.block.border, settings.border);
-        }
-        if (settings?.emboss) {
-            Object.assign(RENDER_CONFIG.block.emboss, settings.emboss);
-        }
-        this._updateBlockRenderSettingsUI();
-        this.editor.render();
+        this.blockRenderSettingsController.applySettings(settings);
     }
 
     // =========================================
-    // Blockify Dialog Methods
+    // Blockify Dialog Methods (delegated to BlockifyController)
     // =========================================
-
-    /**
-     * Bind blockify dialog events
-     * @private
-     */
-    _bindBlockifyDialogEvents() {
-        // Close buttons
-        this.elements.blockifyCloseBtn?.addEventListener('click', () => this._hideBlockifyDialog());
-        this.elements.blockifyCancelBtn?.addEventListener('click', () => this._hideBlockifyDialog());
-
-        // Create button
-        this.elements.blockifyCreateBtn?.addEventListener('click', () => this._executeBlockify());
-
-        // Alpha threshold slider
-        this.elements.blockifyAlphaThreshold?.addEventListener('input', (e) => {
-            if (this.elements.blockifyAlphaValue) {
-                this.elements.blockifyAlphaValue.textContent = e.target.value;
-            }
-            this._updateBlockifyPreview();
-        });
-
-        // Coverage threshold slider
-        this.elements.blockifyCoverageThreshold?.addEventListener('input', (e) => {
-            if (this.elements.blockifyCoverageValue) {
-                this.elements.blockifyCoverageValue.textContent = `${Math.round(e.target.value * 100)}%`;
-            }
-            this._updateBlockifyPreview();
-        });
-
-        // Other options that affect preview
-        this.elements.blockifySourceSelect?.addEventListener('change', () => this._updateBlockifyPreview());
-        this.elements.blockifyGridSize?.addEventListener('change', () => this._updateBlockifyPreview());
-
-        // Toggle default color picker visibility
-        this.elements.blockifyUseImageColor?.addEventListener('change', (e) => {
-            const colorPicker = this.elements.blockifyDefaultColor?.parentElement;
-            if (colorPicker) {
-                colorPicker.style.display = e.target.checked ? 'none' : 'block';
-            }
-        });
-    }
 
     /**
      * Show blockify dialog
      * @param {number} [imageLayerId] - Pre-selected image layer
      */
     showBlockifyDialog(imageLayerId = null) {
-        const dialog = this.elements.blockifyDialog;
-        if (!dialog) return;
-
-        // Populate source image selector
-        this._populateBlockifySourceSelect(imageLayerId);
-
-        // Populate target layer selector
-        this._populateBlockifyTargetSelect();
-
-        // Reset form values
-        if (this.elements.blockifyGridSize) {
-            this.elements.blockifyGridSize.value = 'medium';
-        }
-        if (this.elements.blockifyAlphaThreshold) {
-            this.elements.blockifyAlphaThreshold.value = 128;
-            this.elements.blockifyAlphaValue.textContent = '128';
-        }
-        if (this.elements.blockifyCoverageThreshold) {
-            this.elements.blockifyCoverageThreshold.value = 0.3;
-            this.elements.blockifyCoverageValue.textContent = '30%';
-        }
-        if (this.elements.blockifyDurability) {
-            this.elements.blockifyDurability.value = 1;
-        }
-        if (this.elements.blockifyUseImageColor) {
-            this.elements.blockifyUseImageColor.checked = true;
-        }
-        if (this.elements.blockifyMergeBlocks) {
-            this.elements.blockifyMergeBlocks.checked = false;
-        }
-
-        // Update preview
-        this._updateBlockifyPreview();
-
-        dialog.classList.remove('hidden');
+        this.blockifyController.show(imageLayerId);
     }
 
-    /**
-     * Hide blockify dialog
-     * @private
-     */
-    _hideBlockifyDialog() {
-        this.elements.blockifyDialog?.classList.add('hidden');
-    }
-
-    /**
-     * Populate source image selector
-     * @private
-     */
-    _populateBlockifySourceSelect(preselectedId = null) {
-        const select = this.elements.blockifySourceSelect;
-        if (!select) return;
-
-        const imageLayers = this.editor.layerManager.getImageLayers();
-
-        select.innerHTML = imageLayers.map(layer =>
-            `<option value="${layer.id}" ${layer.id === preselectedId ? 'selected' : ''}>
-                ${layer.name}
-            </option>`
-        ).join('');
-
-        // If no preselection, select first
-        if (!preselectedId && imageLayers.length > 0) {
-            select.value = imageLayers[0].id;
-        }
-    }
-
-    /**
-     * Populate target layer selector
-     * @private
-     */
-    _populateBlockifyTargetSelect() {
-        const select = this.elements.blockifyTargetSelect;
-        if (!select) return;
-
-        const blockLayers = this.editor.layerManager.getBlockLayers();
-
-        select.innerHTML = '<option value="">新規ブロックレイヤー</option>' +
-            blockLayers.map(layer =>
-                `<option value="${layer.id}">${layer.name}</option>`
-            ).join('');
-    }
-
-    /**
-     * Update blockify preview count
-     * @private
-     */
-    _updateBlockifyPreview() {
-        const countEl = this.elements.blockifyPreviewCount;
-        if (!countEl) return;
-
-        const sourceId = parseInt(this.elements.blockifySourceSelect?.value);
-        if (!sourceId) {
-            countEl.textContent = '0';
-            return;
-        }
-
-        const options = this._getBlockifyOptions();
-        const preview = this.editor.layerManager.getBlockifyPreview(sourceId, options);
-
-        countEl.textContent = preview.filledHexes.toString();
-    }
-
-    /**
-     * Get blockify options from form
-     * @private
-     * @returns {Object}
-     */
-    _getBlockifyOptions() {
-        return {
-            gridSize: this.elements.blockifyGridSize?.value || 'medium',
-            alphaThreshold: parseInt(this.elements.blockifyAlphaThreshold?.value) || 128,
-            coverageThreshold: parseFloat(this.elements.blockifyCoverageThreshold?.value) || 0.3,
-            defaultDurability: parseInt(this.elements.blockifyDurability?.value) || 1,
-            defaultColor: this.elements.blockifyDefaultColor?.value || '#64B5F6',
-            useImageColor: this.elements.blockifyUseImageColor?.checked ?? true
-        };
-    }
-
-    /**
-     * Execute blockify operation
-     * @private
-     */
-    _executeBlockify() {
-        const sourceId = parseInt(this.elements.blockifySourceSelect?.value);
-        if (!sourceId) {
-            this._addMessage('error', 'ソース画像を選択してください');
-            return;
-        }
-
-        const options = this._getBlockifyOptions();
-
-        // Add target layer options
-        const targetId = this.elements.blockifyTargetSelect?.value;
-        if (targetId) {
-            options.targetLayerId = parseInt(targetId);
-            options.mergeBlocks = this.elements.blockifyMergeBlocks?.checked ?? false;
-        }
-
-        try {
-            const blockLayer = this.editor.layerManager.blockifyLayer(sourceId, options);
-            this._addMessage('info', `ブロック化完了: ${blockLayer.blocks.size} ブロック生成`);
-            this._hideBlockifyDialog();
-            this._updateLayerList();
-            this.editor.render();
-        } catch (error) {
-            this._addMessage('error', `ブロック化に失敗しました: ${error.message}`);
-        }
-    }
-
-    // =========================================
-    // Context Menu Methods
-    // =========================================
-
-    /**
-     * Bind context menu events
-     * @private
-     */
-    _bindContextMenuEvents() {
-        const contextMenu = this.elements.contextMenu;
-        if (!contextMenu) return;
-
-        // Close on click outside
-        document.addEventListener('click', (e) => {
-            if (!contextMenu.contains(e.target)) {
-                this._hideContextMenu();
-            }
-        });
-
-        // Close on escape
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                this._hideContextMenu();
-            }
-        });
-
-        // Right-click on layer list
-        this.elements.layerList?.addEventListener('contextmenu', (e) => {
-            const layerItem = e.target.closest('.layer-item');
-            if (layerItem) {
-                e.preventDefault();
-                const layerId = parseInt(layerItem.dataset.layerId);
-                this._showContextMenu(e.clientX, e.clientY, layerId);
-            }
-        });
-    }
-
-    /**
-     * Show context menu for a layer
-     * @private
-     */
-    _showContextMenu(x, y, layerId) {
-        const menu = this.elements.contextMenu;
-        if (!menu) return;
-
-        // ベースレイヤーの場合は特別処理
-        const isBaseLayer = layerId === 0;
-        const layer = isBaseLayer
-            ? this.editor.layerManager.getBaseLayer()
-            : this.editor.layerManager.getLayer(layerId);
-        if (!layer) return;
-
-        this._currentContextLayerId = layerId;
-
-        // Build menu items based on layer type
-        const items = [];
-
-        if (isBaseLayer) {
-            // ベースレイヤー専用メニュー
-            items.push({ label: '名前を変更', action: 'rename', icon: '✏️' });
-            items.push({ label: '画像を差し替え', action: 'replace-image', icon: '🖼️' });
-        } else {
-            // 通常レイヤーメニュー
-            items.push({ label: '名前を変更', action: 'rename', icon: '✏️' });
-            items.push({ label: '複製', action: 'duplicate', icon: '📋' });
-            items.push({ type: 'separator' });
-
-            // Image layer specific
-            if (layer.type === 'image') {
-                items.push({ label: 'ブロック化...', action: 'blockify', icon: '🧱' });
-                items.push({ type: 'separator' });
-            }
-
-            // Block layer specific
-            if (layer.type === 'block') {
-                items.push({ label: 'ソース画像を設定...', action: 'set-source-image', icon: '🔗' });
-                items.push({ label: 'ブロックをクリア', action: 'clear-blocks', icon: '🗑️' });
-                items.push({ type: 'separator' });
-            }
-
-            items.push({ label: '上へ移動', action: 'move-up', icon: '⬆️' });
-            items.push({ label: '下へ移動', action: 'move-down', icon: '⬇️' });
-            items.push({ type: 'separator' });
-            items.push({ label: '削除', action: 'delete', icon: '🗑️', danger: true });
-        }
-
-        // Render menu
-        menu.innerHTML = items.map(item => {
-            if (item.type === 'separator') {
-                return '<div class="context-menu-separator"></div>';
-            }
-            return `
-                <div class="context-menu-item ${item.danger ? 'danger' : ''}" data-action="${item.action}">
-                    <span class="context-menu-icon">${item.icon}</span>
-                    <span class="context-menu-label">${item.label}</span>
-                </div>
-            `;
-        }).join('');
-
-        // Bind click handlers
-        menu.querySelectorAll('.context-menu-item').forEach(item => {
-            item.addEventListener('click', () => {
-                this._executeContextMenuAction(item.dataset.action);
-                this._hideContextMenu();
-            });
-        });
-
-        // Position menu
-        menu.style.left = `${x}px`;
-        menu.style.top = `${y}px`;
-        menu.classList.remove('hidden');
-
-        // Adjust if off-screen
-        const rect = menu.getBoundingClientRect();
-        if (rect.right > window.innerWidth) {
-            menu.style.left = `${window.innerWidth - rect.width - 10}px`;
-        }
-        if (rect.bottom > window.innerHeight) {
-            menu.style.top = `${window.innerHeight - rect.height - 10}px`;
-        }
-    }
-
-    /**
-     * Hide context menu
-     * @private
-     */
-    _hideContextMenu() {
-        this.elements.contextMenu?.classList.add('hidden');
-        this._currentContextLayerId = null;
-    }
-
-    /**
-     * Execute context menu action
-     * @private
-     */
-    async _executeContextMenuAction(action) {
-        const layerId = this._currentContextLayerId;
-        if (layerId === null || layerId === undefined) return;
-
-        // ベースレイヤーの場合は特別処理
-        const isBaseLayer = layerId === 0;
-        const layer = isBaseLayer
-            ? this.editor.layerManager.getBaseLayer()
-            : this.editor.layerManager.getLayer(layerId);
-        if (!layer) return;
-
-        switch (action) {
-            case 'rename': {
-                const newName = prompt('新しい名前:', layer.name);
-                if (newName && newName !== layer.name) {
-                    if (isBaseLayer) {
-                        layer.name = newName;
-                        this._updateLayerList();
-                    } else {
-                        this.editor.layerManager.renameLayer(layerId, newName);
-                    }
-                }
-                break;
-            }
-
-            case 'replace-image': {
-                // ベースレイヤーの画像差し替え
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = 'image/*';
-                input.onchange = async (e) => {
-                    const file = e.target.files[0];
-                    if (file) {
-                        try {
-                            await this.editor.layerManager.updateBaseLayerFromFile(file);
-                            this.editor.render();
-                            this._addMessage('info', '画像を差し替えました');
-                        } catch (error) {
-                            this._addMessage('error', `画像の差し替えに失敗: ${error.message}`);
-                        }
-                    }
-                };
-                input.click();
-                break;
-            }
-
-            case 'duplicate': {
-                try {
-                    const newLayer = this.editor.layerManager.duplicateLayer(layerId);
-                    this._addMessage('info', `レイヤー「${newLayer.name}」を作成しました`);
-                } catch (error) {
-                    this._addMessage('error', `複製に失敗しました: ${error.message}`);
-                }
-                break;
-            }
-
-            case 'blockify': {
-                this.showBlockifyDialog(layerId);
-                break;
-            }
-
-            case 'clear-blocks': {
-                if (layer.type === 'block' && await dialogService.confirm('すべてのブロックを削除しますか？', { type: 'danger' })) {
-                    layer.blocks.clear();
-                    this.editor.render();
-                    this._addMessage('info', 'ブロックをクリアしました');
-                }
-                break;
-            }
-
-            case 'set-source-image': {
-                if (layer.type !== 'block') break;
-
-                // 利用可能な画像レイヤーを取得
-                const imageLayers = this.editor.layerManager.getImageLayers();
-
-                if (imageLayers.length === 0) {
-                    this._addMessage('warning', '画像レイヤーがありません');
-                    break;
-                }
-
-                // 選択肢を構築（現在リンク中のものにマーク、解除オプションも含む）
-                const currentSourceId = layer.sourceLayerId;
-                const options = imageLayers.map(imgLayer => {
-                    const isCurrent = imgLayer.id === currentSourceId;
-                    return `${imgLayer.id}: ${imgLayer.name}${isCurrent ? ' (現在)' : ''}`;
-                });
-
-                // 解除オプションを追加
-                if (currentSourceId !== null) {
-                    options.unshift('0: リンクを解除');
-                }
-
-                const choice = prompt(
-                    `ソース画像を選択してください:\n\n${options.join('\n')}\n\n番号を入力:`,
-                    currentSourceId !== null ? String(currentSourceId) : ''
-                );
-
-                if (choice === null) break; // キャンセル
-
-                const selectedId = parseInt(choice);
-                if (isNaN(selectedId)) {
-                    this._addMessage('error', '無効な入力です');
-                    break;
-                }
-
-                if (selectedId === 0) {
-                    // リンク解除
-                    this.editor.layerManager.setBlockLayerSource(layerId, null);
-                    this._addMessage('info', 'ソース画像のリンクを解除しました');
-                } else {
-                    // 指定IDの画像レイヤーを検証
-                    const targetLayer = imageLayers.find(l => l.id === selectedId);
-                    if (!targetLayer) {
-                        this._addMessage('error', '指定された画像レイヤーが見つかりません');
-                        break;
-                    }
-                    this.editor.layerManager.setBlockLayerSource(layerId, selectedId);
-                    this._addMessage('info', `ソース画像を「${targetLayer.name}」に設定しました`);
-                }
-                this.editor.render();
-                break;
-            }
-
-            case 'move-up': {
-                this.editor.layerManager.moveUp(layerId);
-                break;
-            }
-
-            case 'move-down': {
-                this.editor.layerManager.moveDown(layerId);
-                break;
-            }
-
-            case 'delete': {
-                if (await dialogService.confirm(`レイヤー「${layer.name}」を削除しますか？`, { type: 'danger' })) {
-                    this.editor.layerManager.removeLayer(layerId);
-                }
-                break;
-            }
-        }
-    }
+    // Note: Context menu methods are delegated to ContextMenuController
 }
 
