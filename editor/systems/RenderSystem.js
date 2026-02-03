@@ -156,10 +156,11 @@ export class RenderSystem {
             }
         }
 
-        // Draw regular layers
+        // Draw regular layers (with link-aware ordering)
         if (this.layerManager) {
             const layers = this.layerManager.getVisibleLayers();
-            for (const layer of layers) {
+            const orderedLayers = this._getDrawOrderedLayers(layers);
+            for (const layer of orderedLayers) {
                 if (layer.type === 'image') {
                     this._drawImageLayer(ctx, layer);
                 } else if (layer.type === 'block') {
@@ -289,6 +290,53 @@ export class RenderSystem {
                 clipImage: sourceLayer?.image || null
             });
         }
+    }
+
+    /**
+     * Get layers in draw order, ensuring linked images are drawn before their block layers
+     * @private
+     * @param {Array} layers - Visible layers
+     * @returns {Array} - Layers sorted for correct draw order
+     */
+    _getDrawOrderedLayers(layers) {
+        // Build a map of which images are linked by which blocks
+        const linkedByBlock = new Map(); // imageId -> blockLayer
+        for (const layer of layers) {
+            if (layer.type === 'block' && layer.sourceLayerId != null) {
+                linkedByBlock.set(layer.sourceLayerId, layer);
+            }
+        }
+
+        // If no links, return original order
+        if (linkedByBlock.size === 0) {
+            return layers;
+        }
+
+        // Build ordered list: for each block with a linked image,
+        // ensure the image comes before the block
+        const result = [];
+        const drawn = new Set();
+
+        for (const layer of layers) {
+            if (drawn.has(layer.id)) continue;
+
+            if (layer.type === 'block' && layer.sourceLayerId != null) {
+                // Find and draw linked image first if not already drawn
+                const linkedImage = layers.find(l => l.id === layer.sourceLayerId);
+                if (linkedImage && !drawn.has(linkedImage.id)) {
+                    result.push(linkedImage);
+                    drawn.add(linkedImage.id);
+                }
+                // Then draw the block
+                result.push(layer);
+                drawn.add(layer.id);
+            } else {
+                result.push(layer);
+                drawn.add(layer.id);
+            }
+        }
+
+        return result;
     }
 
     /**

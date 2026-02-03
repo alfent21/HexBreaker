@@ -38,9 +38,7 @@ export class BlockifyController {
         this.elements = {
             blockifyDialog: elements.blockifyDialog,
             blockifySourceSelect: elements.blockifySourceSelect,
-            blockifyGridSize: elements.blockifyGridSize,
-            blockifyAlphaThreshold: elements.blockifyAlphaThreshold,
-            blockifyAlphaValue: elements.blockifyAlphaValue,
+            // グリッドサイズとアルファ閾値は廃止（ステージ設定を使用、アルファは250固定）
             blockifyCoverageThreshold: elements.blockifyCoverageThreshold,
             blockifyCoverageValue: elements.blockifyCoverageValue,
             blockifyDurability: elements.blockifyDurability,
@@ -94,14 +92,6 @@ export class BlockifyController {
         // Create button
         this._bindElement('blockifyCreateBtn', 'click', () => this._executeBlockify());
 
-        // Alpha threshold slider
-        this._bindElement('blockifyAlphaThreshold', 'input', (e) => {
-            if (this.elements.blockifyAlphaValue) {
-                this.elements.blockifyAlphaValue.textContent = e.target.value;
-            }
-            this._updatePreview();
-        });
-
         // Coverage threshold slider
         this._bindElement('blockifyCoverageThreshold', 'input', (e) => {
             if (this.elements.blockifyCoverageValue) {
@@ -110,9 +100,8 @@ export class BlockifyController {
             this._updatePreview();
         });
 
-        // Other options that affect preview
+        // Source selection affects preview
         this._bindElement('blockifySourceSelect', 'change', () => this._updatePreview());
-        this._bindElement('blockifyGridSize', 'change', () => this._updatePreview());
 
         // Toggle default color picker visibility
         this._bindElement('blockifyUseImageColor', 'change', (e) => {
@@ -141,15 +130,6 @@ export class BlockifyController {
         this._populateTargetSelect();
 
         // Reset form values
-        if (this.elements.blockifyGridSize) {
-            this.elements.blockifyGridSize.value = 'medium';
-        }
-        if (this.elements.blockifyAlphaThreshold) {
-            this.elements.blockifyAlphaThreshold.value = 128;
-            if (this.elements.blockifyAlphaValue) {
-                this.elements.blockifyAlphaValue.textContent = '128';
-            }
-        }
         if (this.elements.blockifyCoverageThreshold) {
             this.elements.blockifyCoverageThreshold.value = 0.3;
             if (this.elements.blockifyCoverageValue) {
@@ -243,9 +223,13 @@ export class BlockifyController {
      * @returns {Object}
      */
     _getOptions() {
+        // グリッドサイズはステージ設定から取得
+        const stage = this.editor.getCurrentStage();
+        const gridSize = stage?.gridSize || 'medium';
+
         return {
-            gridSize: this.elements.blockifyGridSize?.value || 'medium',
-            alphaThreshold: parseInt(this.elements.blockifyAlphaThreshold?.value) || 128,
+            gridSize,
+            alphaThreshold: 250, // 固定値（ほぼ完全に不透明なピクセルのみ）
             coverageThreshold: parseFloat(this.elements.blockifyCoverageThreshold?.value) || 0.3,
             defaultDurability: parseInt(this.elements.blockifyDurability?.value) || 1,
             defaultColor: this.elements.blockifyDefaultColor?.value || '#64B5F6',

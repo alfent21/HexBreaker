@@ -224,15 +224,19 @@ export class SerializationService {
             });
         }
 
-        // 画像レイヤーを追加（visibleはエディター表示用なのでエクスポートには影響させない）
+        // 画像レイヤーを追加（不可視レイヤーは除外、ただしブロックソースは必要）
         for (const layer of layers) {
             if (layer.type === 'image' && layer.imageData) {
-                backgrounds.push({
-                    id: layer.id,  // ブロックのsourceLayerIdとマッチング用
-                    imageData: layer.imageData,
-                    zIndex: layer.zIndex,
-                    isBlockSource: usedSourceLayerIds.has(layer.id)  // ブロックソースの場合は背景として描画しない
-                });
+                const isBlockSource = usedSourceLayerIds.has(layer.id);
+                // 不可視でもブロックソースなら含める、そうでなければ可視のみ
+                if (layer.visible !== false || isBlockSource) {
+                    backgrounds.push({
+                        id: layer.id,  // ブロックのsourceLayerIdとマッチング用
+                        imageData: layer.imageData,
+                        zIndex: layer.zIndex,
+                        isBlockSource  // ブロックソースの場合は背景として描画しない
+                    });
+                }
             }
         }
 

@@ -31,7 +31,7 @@ export class ImageAnalyzer {
     static get DEFAULT_OPTIONS() {
         return {
             gridSize: 'medium',
-            alphaThreshold: 128,
+            alphaThreshold: 250, // ほぼ完全に不透明なピクセルのみ対象
             coverageThreshold: 0.3,
             defaultDurability: 1,
             defaultColor: '#64B5F6',

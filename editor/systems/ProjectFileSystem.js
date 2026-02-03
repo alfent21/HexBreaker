@@ -132,8 +132,8 @@ export class ProjectFileSystem {
         // JSON化
         const json = JSON.stringify(data, null, 2);
 
-        // サイズ検証
-        const sizeCheck = this.fileManager.validateJsonSize(json, 10);
+        // サイズ検証（50MB制限 - Base64画像を含むため大きくなりやすい）
+        const sizeCheck = this.fileManager.validateJsonSize(json, 50);
         if (!sizeCheck.valid) {
             throw new Error(sizeCheck.message);
         }
