@@ -339,6 +339,28 @@
     opacity: 0.5;
 }
 
+.layer-item.drop-target {
+    background: var(--color-accent);
+    outline: 2px dashed var(--color-text-primary);
+    outline-offset: -2px;
+}
+
+.layer-item.layer-child {
+    padding-left: calc(var(--spacing-md) + 16px);
+    background: var(--color-bg-tertiary);
+    border-left: 2px solid var(--color-accent);
+}
+
+.layer-item.layer-child:hover {
+    background: var(--color-bg-hover);
+}
+
+.layer-child-indicator {
+    color: var(--color-text-muted);
+    font-family: monospace;
+    margin-right: var(--spacing-xs);
+}
+
 .layer-checkbox {
     width: 16px;
     height: 16px;

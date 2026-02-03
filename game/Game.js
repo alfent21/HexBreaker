@@ -1,56 +1,60 @@
 /**
  * Game.js - Main Game Class
  * Based on game_specification.md
- * 
+ *
  * Coordinates all game systems for a playable block breaker experience.
+ * Refactored to delegate to specialized systems.
  */
 
 import { GameState, STATES } from './GameState.js';
 import { InputManager } from './InputManager.js';
 import { Ball } from './entities/Ball.js';
 import { Paddle } from './entities/Paddle.js';
-import { PowerGem } from './entities/PowerGem.js';
-import { Laser } from './entities/Laser.js';
 import { Shield } from './entities/Shield.js';
 import { CollisionSystem } from './physics/CollisionSystem.js';
-import { Boss, BOSS_STATES } from './entities/Boss.js';
-import { hexToPixel, GRID_SIZES } from '../shared/HexMath.js';
-import { drawHexBlock, drawLines, RENDER_CONFIG } from '../shared/Renderer.js';
+import { GRID_SIZES } from '../shared/HexMath.js';
 
-// Weapon costs
-const WEAPON_COSTS = {
-    slow: 1,
-    wide: 2,
-    double: 2,
-    laser: 3,
-    shield: 4,
-    magnet: 4,
-    ghost: 4
-};
+// Import systems
+import { GameMessageSystem } from './ui/GameMessageSystem.js';
+import { GemSystem } from './systems/GemSystem.js';
+import { LaserSystem } from './systems/LaserSystem.js';
+import { WeaponSystem, WEAPON_COSTS } from './systems/WeaponSystem.js';
+import { BossSystem } from './systems/BossSystem.js';
+import { GameRenderSystem } from './systems/GameRenderSystem.js';
 
 export class Game {
     constructor(canvas) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
 
-        // Systems
+        // Core systems
         this.state = new GameState();
         this.input = new InputManager(canvas);
         this.collision = new CollisionSystem();
-        this.shield = null;
+
+        // Stage settings
+        this.canvasWidth = canvas.width;
+        this.canvasHeight = canvas.height;
+        this.gridSize = GRID_SIZES.medium;
+        this.displayScale = 1;
+
+        // Initialize sub-systems
+        this.messageSystem = new GameMessageSystem();
+        this.gemSystem = new GemSystem(this.gridSize);
+        this.laserSystem = new LaserSystem();
+        this.weaponSystem = new WeaponSystem(this.messageSystem, this.laserSystem);
+        this.bossSystem = new BossSystem(this.gemSystem);
+        this.renderSystem = new GameRenderSystem(this.ctx, this.canvasWidth, this.canvasHeight);
+
+        // Connect render system message callback
+        this.renderSystem.showMessage = (text, type, duration) => {
+            this.messageSystem.showMessage(text, type, duration);
+        };
 
         // Entities
         this.balls = [];
         this.paddle = null;
-        this.powerGems = [];
-        this.lasers = [];
-        this.laserStock = 0;
-        this.activeWeapon = null;
-        this.laserCooldown = 0;
-
-        // Boss
-        this.boss = null;
-        this.destroyedBlocks = []; // For boss block regeneration
+        this.shield = null;
 
         // Game loop
         this.lastTime = 0;
@@ -61,23 +65,9 @@ export class Game {
         this.onLivesUpdate = null;
         this.onGemsUpdate = null;
         this.onComboUpdate = null;
-        this.onWeaponUpdate = null; // New callback for UI update
+        this.onWeaponUpdate = null;
         this.onGameOver = null;
         this.onStageClear = null;
-
-        // Stage data
-        this.canvasWidth = canvas.width;
-        this.canvasHeight = canvas.height;
-        this.gridSize = GRID_SIZES.medium;
-
-        // Background images
-        this.backgroundImages = [];
-        this.displayScale = 1;
-
-        // Message system
-        this._messageLog = [];
-        this._messageTimer = null;
-        this._blocksMessageShown = false;
 
         // Bind methods
         this._gameLoop = this._gameLoop.bind(this);
@@ -95,11 +85,9 @@ export class Game {
      * @private
      */
     _setupCanvas() {
-        // Set logical size
         this.canvas.width = this.canvasWidth;
         this.canvas.height = this.canvasHeight;
 
-        // Get available space
         const wrapper = this.canvas.parentElement;
         let availableWidth, availableHeight;
 
@@ -108,18 +96,15 @@ export class Game {
             availableHeight = wrapper.clientHeight;
         } else {
             availableWidth = window.innerWidth;
-            availableHeight = window.innerHeight - 150; // UI space
+            availableHeight = window.innerHeight - 150;
         }
 
-        // Calculate scale to fit
         const scaleX = availableWidth / this.canvas.width;
         const scaleY = availableHeight / this.canvas.height;
-        const scale = Math.min(scaleX, scaleY, 1); // Shrink only, never enlarge
+        const scale = Math.min(scaleX, scaleY, 1);
 
-        // Apply CSS display size
         this.canvas.style.width = (this.canvas.width * scale) + 'px';
         this.canvas.style.height = (this.canvas.height * scale) + 'px';
-
         this.displayScale = scale;
     }
 
@@ -133,58 +118,55 @@ export class Game {
             this.canvasWidth = stageData.canvas.width;
             this.canvasHeight = stageData.canvas.height;
         }
-
-        // Setup canvas with resize
         this._setupCanvas();
 
         // Set grid size
         if (stageData.gridSize) {
             if (typeof stageData.gridSize === 'string') {
-                // String key (e.g., 'medium') - look up in GRID_SIZES
                 this.gridSize = GRID_SIZES[stageData.gridSize] || GRID_SIZES.medium;
                 this.collision.setGridSize(stageData.gridSize);
             } else {
-                // Object format from serialization - use directly
                 this.gridSize = stageData.gridSize;
-                // Determine grid size name for collision system
                 const gridName = this._getGridSizeName(stageData.gridSize.radius);
                 this.collision.setGridSize(gridName);
             }
         }
 
-        // Apply block render settings if provided
+        // Update systems with new grid size
+        this.gemSystem.setGridSize(this.gridSize);
+        this.renderSystem.setCanvasSize(this.canvasWidth, this.canvasHeight);
+
+        // Apply block render settings
         if (stageData.blockRenderSettings) {
-            this._applyBlockRenderSettings(stageData.blockRenderSettings);
+            this.renderSystem.applyBlockRenderSettings(stageData.blockRenderSettings);
+            const fillOpacity = Math.round((stageData.blockRenderSettings.fill?.opacity || 1) * 100);
+            const borderWidth = Math.round((stageData.blockRenderSettings.border?.widthRatio || 0) * 100);
+            const embossWidth = Math.round((stageData.blockRenderSettings.emboss?.lineWidthRatio || 0) * 100);
+            this.showMessage(`描画設定: 塗り${fillOpacity}% 境界線${borderWidth}% エンボス${embossWidth}%`, 'info');
         } else {
             this.showMessage('描画設定: デフォルト使用', 'warning');
         }
 
-        // Load background images
-        this._loadBackgrounds(stageData);
+        // Load backgrounds
+        this.renderSystem.loadBackgrounds(stageData);
 
         // Load state
         this.state.loadStage(stageData);
         this.state.reset();
 
+        // Reset all systems
         this.balls = [];
-        this.powerGems = [];
-        this.lasers = [];
-        this.laserStock = 0;
-        this.activeWeapon = null;
-        this.laserCooldown = 0;
-        this.boss = null;
-        this.destroyedBlocks = [];
-        this._blocksMessageShown = false;
+        this.gemSystem.clear();
+        this.laserSystem.clear();
+        this.weaponSystem.reset();
+        this.bossSystem.reset();
 
-        // Create boss if stage has boss config
+        // Load boss if configured
         if (stageData.boss) {
-            this.boss = new Boss({
-                ...stageData.boss,
-                gridSize: stageData.gridSize || 'medium'
-            });
+            this.bossSystem.loadBoss(stageData.boss, stageData.gridSize || 'medium');
         }
 
-        // Create paddle at bottom center
+        // Create paddle and shield
         this.paddle = new Paddle(this.canvasWidth / 2, this.canvasHeight - 50);
         this.paddle.setBounds(0, this.canvasWidth);
         this.shield = new Shield(this.canvasHeight - 15);
@@ -196,13 +178,11 @@ export class Game {
         this.running = true;
         this.lastTime = performance.now();
 
-        // Recalculate canvas size after DOM update
         requestAnimationFrame(() => {
             this._setupCanvas();
             requestAnimationFrame(this._gameLoop);
         });
 
-        // Update UI
         this._updateUI();
     }
 
@@ -210,7 +190,6 @@ export class Game {
      * Create a test stage for demonstration
      */
     loadTestStage() {
-        // Create simple test stage with grid of blocks
         const blocks = [];
         for (let row = 2; row < 8; row++) {
             const cols = row % 2 === 0 ? 15 : 14;
@@ -247,69 +226,12 @@ export class Game {
 
     /**
      * Get grid size name from radius value
-     * @param {number} radius
-     * @returns {string}
      * @private
      */
     _getGridSizeName(radius) {
         if (radius <= 15) return 'small';
         if (radius <= 40) return 'medium';
         return 'large';
-    }
-
-    /**
-     * Apply block render settings from stage data
-     * @param {Object} settings
-     * @private
-     */
-    _applyBlockRenderSettings(settings) {
-        if (settings.fill) {
-            Object.assign(RENDER_CONFIG.block.fill, settings.fill);
-        }
-        if (settings.border) {
-            Object.assign(RENDER_CONFIG.block.border, settings.border);
-        }
-        if (settings.emboss) {
-            Object.assign(RENDER_CONFIG.block.emboss, settings.emboss);
-        }
-
-        // 確認メッセージ
-        const fillOpacity = Math.round((settings.fill?.opacity || 1) * 100);
-        const borderWidth = Math.round((settings.border?.widthRatio || 0) * 100);
-        const embossWidth = Math.round((settings.emboss?.lineWidthRatio || 0) * 100);
-        this.showMessage(`描画設定: 塗り${fillOpacity}% 境界線${borderWidth}% エンボス${embossWidth}%`, 'info');
-    }
-
-    /**
-     * Load background images from stage data
-     * @param {Object} stageData
-     * @private
-     */
-    _loadBackgrounds(stageData) {
-        this.backgroundImages = [];
-
-        // Collect backgrounds from baseLayer and backgrounds array
-        const backgrounds = stageData.backgrounds || [];
-
-        // Sort by zIndex
-        const sorted = [...backgrounds].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
-
-        for (const bgData of sorted) {
-            if (bgData.imageData) {
-                const img = new Image();
-                img.src = bgData.imageData;
-                this.backgroundImages.push({
-                    id: bgData.id || null,  // ブロックのsourceLayerIdとマッチング用
-                    image: img,
-                    x: bgData.x || 0,
-                    y: bgData.y || 0,
-                    width: bgData.width || this.canvasWidth,
-                    height: bgData.height || this.canvasHeight,
-                    zIndex: bgData.zIndex || 0,
-                    isBlockSource: bgData.isBlockSource || false  // ブロックソースは背景として描画しない
-                });
-            }
-        }
     }
 
     /**
@@ -332,15 +254,13 @@ export class Game {
         let launched = false;
         for (const ball of this.balls) {
             if (ball.attached) {
-                // Launch at slight random angle
                 const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.5;
                 ball.launch(angle);
                 launched = true;
             }
         }
-        // ゲーム開始時にデバッグメッセージを非表示にしてHUDを表示
         if (launched) {
-            this.hideMessages();
+            this.messageSystem.hideMessages();
         }
     }
 
@@ -359,7 +279,6 @@ export class Game {
         }
 
         this._render();
-
         requestAnimationFrame(this._gameLoop);
     }
 
@@ -370,28 +289,43 @@ export class Game {
     _update(dt) {
         const speedMultiplier = this.input.getSpeedMultiplier();
 
-        // Weapon Input (Laser)
-        if (this.activeWeapon === 'laser' && (this.input.keys[' '] || this.input.isMouseDown)) {
-            if (this.laserStock > 0 && this.laserCooldown <= 0) {
-                this._fireLaser();
-                this.laserCooldown = 0.5;
-            }
-        }
-        if (this.laserCooldown > 0) this.laserCooldown -= dt;
+        // Update weapon system (handles laser/magnet/ghost input)
+        this.weaponSystem.update(dt, this.input, this.balls, this.paddle);
 
-        // Weapon Input (Ghost)
-        if (this.activeWeapon === 'ghost' && this.balls.length > 0) {
-            // Apply ghost effect to primary ball while mouse held
-            this.balls[0].isGhost = this.input.isMouseDown;
-        }
-
-        // Update lasers
-        this._updateLasers(dt);
+        // Update laser system
+        this.laserSystem.update(dt, this.state.blocks, this.gridSize, (block, laser) => {
+            this._onBlockHitByLaser(block);
+        });
 
         // Update paddle
         this.paddle.update(this.input, this.canvasWidth);
 
         // Update balls
+        this._updateBalls(dt, speedMultiplier);
+
+        // Update gems
+        this.gemSystem.update(dt, this.paddle, this.canvasHeight, (gem) => {
+            this.state.addGems(1);
+            this.state.addScore(100);
+            this._updateUI();
+        });
+
+        // Update boss
+        if (this.bossSystem.isActive) {
+            this._updateBoss(dt);
+        }
+
+        // Check clear condition
+        if (this.state.isCleared() && !this.bossSystem.isActive) {
+            this._stageClear();
+        }
+    }
+
+    /**
+     * Update all balls
+     * @private
+     */
+    _updateBalls(dt, speedMultiplier) {
         for (let i = this.balls.length - 1; i >= 0; i--) {
             const ball = this.balls[i];
 
@@ -407,11 +341,10 @@ export class Game {
                 continue;
             }
 
-            // Magnet Attraction
-            if (this.activeWeapon === 'magnet' && this.input.isMouseDown) {
+            // Magnet attraction
+            if (this.weaponSystem.activeWeapon === 'magnet' && this.input.isMouseDown) {
                 const dx = this.paddle.x - ball.x;
                 const dy = (this.paddle.y - 20) - ball.y;
-                // Simple attraction force
                 ball.x += dx * 5 * dt;
                 ball.y += dy * 5 * dt;
             }
@@ -419,76 +352,37 @@ export class Game {
             // Move ball
             ball.update(dt, speedMultiplier);
 
-            // Wall collisions (canvas boundaries)
+            // Wall collisions
             this.collision.checkWallCollision(ball, this.canvasWidth, this.canvasHeight);
 
-            // Line collisions (collision lines from editor)
+            // Line collisions
             this._checkLineCollision(ball, i);
 
             // Paddle collision
             const paddleHit = this.paddle.checkCollision(ball);
             if (paddleHit.hit) {
-                if (this.activeWeapon === 'magnet' && !ball.isGhost) {
-                    // Catch ball
-                    ball.attached = true;
-                    ball.attachOffset = {
-                        x: ball.x - this.paddle.x,
-                        y: ball.y - this.paddle.y
-                    };
-                    ball.dx = 0;
-                    ball.dy = 0;
+                if (this.weaponSystem.handleMagnetCatch(ball, this.paddle)) {
+                    // Ball was caught by magnet
                 } else {
                     ball.reflectFromPaddle(paddleHit.offsetRatio);
                 }
             }
 
             // Shield collision
-            if (this.shield && this.shield.checkCollision(ball)) {
-                // Handled in shield class (bounce)
+            if (this.shield) {
+                this.shield.checkCollision(ball);
             }
 
             // Block collisions
             this._checkBlockCollisions(ball);
 
-            // Miss check (ball below screen)
+            // Miss check
             if (this.collision.checkMiss(ball, this.canvasHeight)) {
                 this.balls.splice(i, 1);
-
-                // If no balls left, lose life
                 if (this.balls.length === 0) {
                     this._loseLife();
                 }
             }
-        }
-
-        // Update power gems
-        for (let i = this.powerGems.length - 1; i >= 0; i--) {
-            const gem = this.powerGems[i];
-            gem.update(dt);
-
-            // Collection
-            if (gem.checkCollection(this.paddle)) {
-                this.state.addGems(1);
-                this.state.addScore(100); // Bonus score for gem
-                this.powerGems.splice(i, 1);
-                this._updateUI();
-                continue;
-            }
-
-            // Off screen
-            if (gem.isOffScreen(this.canvasHeight)) {
-                this.powerGems.splice(i, 1);
-            }
-        }
-
-        // Update boss
-        if (this.boss && this.boss.active) {
-            this._updateBoss(dt);
-        }
-
-        // Check clear condition
-        if (this.state.isCleared() && (!this.boss || !this.boss.active)) {
-            this._stageClear();
         }
     }
 
@@ -497,72 +391,25 @@ export class Game {
      * @private
      */
     _updateBoss(dt) {
-        if (!this.boss) return;
-
-        // Prepare context for boss
-        const context = {
+        this.bossSystem.update(dt, {
             balls: this.balls,
             blocks: this.state.blocks,
-            destroyedBlocks: this.destroyedBlocks,
             paddle: this.paddle,
             canvasWidth: this.canvasWidth,
             canvasHeight: this.canvasHeight,
             onDebuffHit: (type) => this._applyDebuff(type)
-        };
+        });
 
-        this.boss.update(dt, context);
-
-        // Check ball collisions with boss
-        for (const ball of this.balls) {
-            if (ball.attached || !ball.active) continue;
-
-            if (this.boss.checkBallCollision(ball)) {
-                // Damage boss
-                const defeated = this.boss.takeDamage(1);
-
-                // Reflect ball
-                const dx = ball.x - this.boss.x;
-                const dy = ball.y - this.boss.y;
-                const len = Math.hypot(dx, dy);
-                if (len > 0) {
-                    ball.reflect(dx / len, dy / len);
-                    // Push ball away
-                    ball.x += (dx / len) * 10;
-                    ball.y += (dy / len) * 10;
-                }
-
-                // Score for hitting boss
-                this.state.addScore(100);
-                this.state.incrementCombo();
-
-                if (defeated) {
-                    // Boss defeated bonus
-                    this.state.addScore(5000);
-                    this.state.setBossDefeated();
-                    this._spawnBossReward();
-                }
-
-                this._updateUI();
-            }
+        // Ball collisions with boss
+        const ballResult = this.bossSystem.checkBallCollisions(this.balls, this.state);
+        if (ballResult.hit) {
+            this._updateUI();
         }
 
-        // Check laser collisions with boss
-        for (const laser of this.lasers) {
-            if (!laser.active) continue;
-
-            const dist = Math.hypot(laser.x - this.boss.x, laser.y - this.boss.y);
-            if (dist < this.boss.radius) {
-                const defeated = this.boss.takeDamage(2);
-                this.state.addScore(50);
-
-                if (defeated) {
-                    this.state.addScore(5000);
-                    this.state.setBossDefeated();
-                    this._spawnBossReward();
-                }
-
-                this._updateUI();
-            }
+        // Laser collisions with boss
+        const laserResult = this.bossSystem.checkLaserCollisions(this.laserSystem.lasers, this.state);
+        if (laserResult.hit) {
+            this._updateUI();
         }
     }
 
@@ -573,36 +420,17 @@ export class Game {
     _applyDebuff(type) {
         switch (type) {
             case 'slow':
-                // Slow paddle movement temporarily
-                // Note: InputManager doesn't have direct speed control,
-                // so we'll slow ball speed instead
                 this.balls.forEach(ball => ball.setSpeedMultiplier(0.5));
                 setTimeout(() => {
                     this.balls.forEach(ball => ball.setSpeedMultiplier(1.0));
                 }, 5000);
                 break;
             case 'shrink':
-                // Shrink paddle
                 this.paddle.setWidthMultiplier(0.6);
                 setTimeout(() => {
                     this.paddle.setWidthMultiplier(1.0);
                 }, 5000);
                 break;
-        }
-    }
-
-    /**
-     * Spawn reward gems when boss is defeated
-     * @private
-     */
-    _spawnBossReward() {
-        // Spawn multiple gems at boss location
-        for (let i = 0; i < 10; i++) {
-            const angle = (Math.PI * 2 / 10) * i;
-            const distance = 30 + Math.random() * 20;
-            const x = this.boss.x + Math.cos(angle) * distance;
-            const y = this.boss.y + Math.sin(angle) * distance;
-            this.powerGems.push(new PowerGem(x, y));
         }
     }
 
@@ -614,45 +442,56 @@ export class Game {
         const hits = this.collision.findCollidingBlocks(ball, this.state.blocks);
 
         for (const { block, normal } of hits) {
-            // Reflect ball (skip if Ghost)
             if (!ball.isGhost) {
                 ball.reflect(normal.x, normal.y);
             }
 
-            // Damage block
             block.durability--;
-            this.state.addScore(10); // Hit score
+            this.state.addScore(10);
 
             if (block.durability <= 0) {
                 block.alive = false;
-                this.state.addScore(50); // Destroy score
+                this.state.addScore(50);
                 this.state.incrementCombo();
 
-                // Track destroyed block for boss regeneration
-                this.destroyedBlocks.push({
-                    row: block.row,
-                    col: block.col,
-                    originalColor: block.color
-                });
+                // Track for boss regeneration
+                this.bossSystem.trackDestroyedBlock(block);
 
-                // Gem drop check
-                if (block.gemDrop === 'guaranteed' || block.gemDrop === 'infinite') {
-                    this._spawnGem(block);
-                } else if (Math.random() < 0.15) { // 15% chance
-                    this._spawnGem(block);
+                // Gem drop
+                if (this.gemSystem.shouldDropGem(block)) {
+                    this.gemSystem.spawnFromBlock(block);
                 }
             }
 
             this._updateUI();
-            break; // Only process first collision per frame
+            break;
         }
     }
 
     /**
-     * Check collision with collision lines and apply Block Guide
+     * Handle block hit by laser
      * @private
-     * @param {Ball} ball - The ball to check
-     * @param {number} ballIndex - Index in balls array (0 = primary ball)
+     */
+    _onBlockHitByLaser(block) {
+        block.durability--;
+        this.state.addScore(10);
+
+        if (block.durability <= 0) {
+            block.alive = false;
+            this.state.addScore(50);
+            this.state.incrementCombo();
+
+            if (this.gemSystem.shouldDropGem(block)) {
+                this.gemSystem.spawnFromBlock(block);
+            }
+        }
+
+        this._updateUI();
+    }
+
+    /**
+     * Check collision with lines and apply Block Guide
+     * @private
      */
     _checkLineCollision(ball, ballIndex) {
         const lines = this.state.stageData?.lines;
@@ -661,57 +500,45 @@ export class Game {
         const lineHit = this.collision.checkLineCollision(ball, lines);
         if (!lineHit.hit) return;
 
-        // Prevent rapid repeated collisions with the same line
+        // Prevent rapid repeated collisions
         const lineId = lineHit.line.id || lineHit.segmentIndex;
         const now = performance.now();
-        const cooldown = 50; // ms - minimum time between collisions with same line
+        const cooldown = 50;
 
         if (ball.lastLineHitId === lineId && (now - ball.lastLineHitTime) < cooldown) {
-            return; // Skip this collision - too soon after previous hit on same line
+            return;
         }
 
-        // Record this collision
         ball.lastLineHitId = lineId;
         ball.lastLineHitTime = now;
 
-        // Reflect ball off the line
         ball.reflect(lineHit.normal.x, lineHit.normal.y);
 
-        // Calculate proper push distance based on collision threshold
         const lineThickness = lineHit.line.thickness || 3;
         const hitThreshold = ball.radius + lineThickness / 2;
-        const pushDistance = hitThreshold + 2; // Push beyond collision threshold
+        const pushDistance = hitThreshold + 2;
 
-        // Push ball away from line to prevent re-collision
         ball.x += lineHit.normal.x * pushDistance;
         ball.y += lineHit.normal.y * pushDistance;
 
-        // Apply Block Guide (primary ball only)
+        // Block Guide (primary ball only)
         if (ballIndex === 0) {
             const config = this._resolveBlockGuideConfig(lineHit.line);
             if (config?.enabled) {
                 const reflectionAngle = Math.atan2(ball.dy, ball.dx);
-                this.collision.applyBlockGuide(
-                    ball,
-                    reflectionAngle,
-                    this.state.blocks,
-                    config
-                );
+                this.collision.applyBlockGuide(ball, reflectionAngle, this.state.blocks, config);
             }
         }
     }
 
     /**
-     * Resolve Block Guide configuration from line and stage settings
+     * Resolve Block Guide configuration
      * @private
-     * @param {Object} line - The collision line
-     * @returns {{enabled: boolean, probability: number, angleLimit: number}|null}
      */
     _resolveBlockGuideConfig(line) {
         const stageMeta = this.state.stageData?.meta?.blockGuide;
         const lineConfig = line?.blockGuide;
 
-        // Check if block guide is enabled at any level
         const stageEnabled = stageMeta?.enabled !== false;
         const lineEnabled = lineConfig?.enabled !== false;
 
@@ -725,23 +552,11 @@ export class Game {
     }
 
     /**
-     * Spawn a power gem at block location
-     * @private
-     */
-    _spawnGem(block) {
-        const center = hexToPixel(block.row, block.col, this.gridSize);
-        this.powerGems.push(new PowerGem(center.x, center.y));
-    }
-
-    /**
      * Handle losing a life
      * @private
      */
     _loseLife() {
         const gameOver = this.state.loseLife();
-
-        // Reset active weapons on life loss? (Design choice: keep or lose?)
-        // For now, keep passive perks, lose active states if any
 
         if (gameOver) {
             this.state.state = STATES.GAMEOVER;
@@ -749,7 +564,6 @@ export class Game {
                 this.onGameOver(this.state.score);
             }
         } else {
-            // Respawn ball
             this._createBall();
         }
 
@@ -757,89 +571,21 @@ export class Game {
     }
 
     /**
-     * Purchase and activate weapon
+     * Purchase weapon
      * @private
      */
     _purchaseWeapon(weaponId) {
         if (!weaponId || this.state.state !== STATES.PLAYING) return;
 
-        const cost = WEAPON_COSTS[weaponId];
-        if (!cost) return;
+        const success = this.weaponSystem.purchase(weaponId, {
+            state: this.state,
+            balls: this.balls,
+            paddle: this.paddle,
+            shield: this.shield
+        });
 
-        // Check affordability
-        if (this.state.gems >= cost) {
-            // Consume gems
-            this.state.gems -= cost;
-
-            // Activate weapon effect
-            this._activateWeapon(weaponId);
-
-            // Update UI
+        if (success) {
             this._updateUI();
-        }
-    }
-
-    /**
-     * Activate weapon effect
-     * @private
-     */
-    _activateWeapon(weaponId) {
-        this.showMessage(`🔫 ${weaponId.toUpperCase()} activated!`, 'info', 2000);
-
-        switch (weaponId) {
-            case 'slow':
-                // Slow down balls (0.6x speed for 15s)
-                this.balls.forEach(ball => ball.setSpeedMultiplier(0.6));
-                setTimeout(() => {
-                    this.balls.forEach(ball => ball.setSpeedMultiplier(1.0));
-                }, 15000);
-                break;
-
-            case 'wide':
-                // Expand paddle (1.5x width for 20s)
-                this.paddle.setWidthMultiplier(1.5);
-                setTimeout(() => {
-                    this.paddle.setWidthMultiplier(1.0);
-                }, 20000);
-                break;
-
-            case 'double':
-                // Duplicate balls
-                const newBalls = [];
-                this.balls.forEach(ball => {
-                    if (!ball.active) return;
-
-                    const newBall = new Ball(ball.x, ball.y);
-                    newBall.dx = -ball.dx; // Reverse horizontal
-                    newBall.dy = ball.dy;
-                    newBall.speed = ball.speed;
-                    newBall.active = true;
-                    newBall.attached = false;
-                    newBalls.push(newBall);
-                });
-                this.balls.push(...newBalls);
-                break;
-
-            case 'laser':
-                this.activeWeapon = 'laser';
-                this.laserStock += 5; // Add 5 shots
-                break;
-
-            case 'shield':
-                if (this.shield) this.shield.activate();
-                break;
-
-            case 'magnet':
-                this.activeWeapon = 'magnet';
-                this.laserStock = 0; // Clear other active weapons
-                setTimeout(() => { if (this.activeWeapon === 'magnet') this.activeWeapon = null; }, 20000);
-                break;
-
-            case 'ghost':
-                this.activeWeapon = 'ghost';
-                this.laserStock = 0;
-                setTimeout(() => { if (this.activeWeapon === 'ghost') this.activeWeapon = null; }, 15000);
-                break;
         }
     }
 
@@ -864,13 +610,8 @@ export class Game {
         if (this.onGemsUpdate) this.onGemsUpdate(this.state.gems);
         if (this.onComboUpdate) this.onComboUpdate(this.state.combo);
 
-        // Update weapon availability
         if (this.onWeaponUpdate) {
-            const availability = {};
-            for (const [id, cost] of Object.entries(WEAPON_COSTS)) {
-                availability[id] = this.state.gems >= cost;
-            }
-            this.onWeaponUpdate(availability);
+            this.onWeaponUpdate(this.weaponSystem.getAvailability(this.state.gems));
         }
     }
 
@@ -879,235 +620,23 @@ export class Game {
      * @private
      */
     _render() {
-        const ctx = this.ctx;
-
-        // Clear canvas
-        ctx.fillStyle = '#1a1a2e';
-        ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
-
-        // Draw background images (skip block source images)
-        for (const bg of this.backgroundImages) {
-            if (bg.isBlockSource) continue;  // ブロックソース画像は背景として描画しない
-            if (bg.image && bg.image.complete) {
-                ctx.drawImage(bg.image, bg.x, bg.y, bg.width, bg.height);
-            }
-        }
-
-        // Draw lines (collision, paddle, missline, decoration)
-        this._renderLines();
-
-        // Draw blocks
-        this._renderBlocks();
-
-        // Draw paddle
-        this.paddle.render(ctx);
-
-        // Draw shield
-        if (this.shield) this.shield.render(ctx, this.canvasWidth);
-
-        // Draw power gems
-        for (const gem of this.powerGems) {
-            gem.render(ctx);
-        }
-
-        // Draw lasers
-        this._renderLasers();
-
-        // Draw balls
-        for (const ball of this.balls) {
-            ball.render(ctx);
-        }
-
-        // Draw boss
-        if (this.boss) {
-            this.boss.render(ctx);
-        }
-
-        // Draw game state overlays
-        if (this.state.state === STATES.GAMEOVER) {
-            this._renderOverlay('GAME OVER', '#F44336');
-        } else if (this.state.state === STATES.CLEAR) {
-            this._renderOverlay('STAGE CLEAR!', '#4CAF50');
-        }
-    }
-
-    /**
-     * Render lines (collision, paddle, missline, decoration)
-     * Uses shared Renderer module for consistent visuals
-     * @private
-     */
-    _renderLines() {
-        const lines = this.state.stageData?.lines;
-        if (!lines || lines.length === 0) return;
-
-        // Draw all lines using shared renderer
-        // In game mode, labels are optional (default: false for cleaner visuals)
-        drawLines(this.ctx, lines, {
-            showLabels: false
+        // Main render
+        this.renderSystem.render({
+            state: this.state,
+            balls: this.balls,
+            paddle: this.paddle,
+            shield: this.shield,
+            gridSize: this.gridSize
         });
-    }
 
-    /**
-     * Render hex blocks
-     * Uses shared Renderer module for consistent visuals
-     * @private
-     */
-    _renderBlocks() {
-        // Show block count message once on first render
-        if (!this._blocksMessageShown && this.state.blocks.length > 0) {
-            this.showMessage(`✓ ${this.state.blocks.length} blocks loaded`, 'success');
-            this._blocksMessageShown = true;
+        // Render gems
+        this.gemSystem.render(this.ctx);
 
-            // デバッグ: ブロックとソース画像の状態、描画設定をメッセージ領域に出力
-            const blocksWithSource = this.state.blocks.filter(b => b.sourceLayerId != null);
-            const bgIds = this.backgroundImages.map(bg => bg.id).join(',');
-            const sampleSourceId = blocksWithSource.length > 0 ? blocksWithSource[0].sourceLayerId : 'none';
-            const borderW = Math.round((RENDER_CONFIG.block.border.widthRatio || 0) * 100);
-            const embossW = Math.round((RENDER_CONFIG.block.emboss.lineWidthRatio || 0) * 100);
-            this.showMessage(
-                `[DEBUG] blocks:${blocksWithSource.length}/${this.state.blocks.length}, bgIds:[${bgIds}], 境界線:${borderW}%, エンボス:${embossW}%`,
-                'warning',
-                8000
-            );
-        }
+        // Render lasers
+        this.laserSystem.render(this.ctx);
 
-        for (const block of this.state.blocks) {
-            if (!block.alive) continue;
-
-            const center = hexToPixel(block.row, block.col, this.gridSize);
-
-            // sourceLayerIdから対応する背景画像を取得
-            let clipImage = null;
-            if (block.sourceLayerId != null) {
-                const bgEntry = this.backgroundImages.find(
-                    bg => bg.id === block.sourceLayerId
-                );
-                if (bgEntry && bgEntry.image) {
-                    clipImage = bgEntry.image;
-                }
-            }
-
-            // Use shared renderer for block drawing
-            drawHexBlock(this.ctx, center.x, center.y, this.gridSize.radius, block.color || '#64B5F6', {
-                durability: block.durability,
-                gemDrop: block.gemDrop,
-                blockType: block.blockType,
-                clipImage: clipImage
-            });
-        }
-    }
-
-    /**
-     * Render state overlay
-     * @private
-     */
-    _renderOverlay(text, color) {
-        const ctx = this.ctx;
-
-        // Background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
-
-        // Text
-        ctx.fillStyle = color;
-        ctx.font = 'bold 64px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(text, this.canvasWidth / 2, this.canvasHeight / 2 - 50);
-
-        // Score
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '32px sans-serif';
-        ctx.fillText(`Score: ${this.state.score.toLocaleString()}`, this.canvasWidth / 2, this.canvasHeight / 2 + 20);
-
-        // Instructions
-        ctx.font = '20px sans-serif';
-        ctx.fillStyle = '#888888';
-        ctx.fillText('Click to continue', this.canvasWidth / 2, this.canvasHeight / 2 + 80);
-    }
-
-    /**
-     * Update lasers logic
-     * @private
-     */
-    _updateLasers(dt) {
-        for (let i = this.lasers.length - 1; i >= 0; i--) {
-            const laser = this.lasers[i];
-            laser.update();
-
-            if (!laser.active) {
-                this.lasers.splice(i, 1);
-                continue;
-            }
-
-            this._checkLaserCollisions(laser);
-        }
-    }
-
-    /**
-     * Check collisions for laser
-     * @private
-     */
-    _checkLaserCollisions(laser) {
-        // Simplified centered collision check
-        const laserCenter = { x: laser.x, y: laser.y };
-
-        for (const block of this.state.blocks) {
-            if (!block.alive) continue;
-
-            const blockCenter = hexToPixel(block.row, block.col, this.gridSize);
-            const dx = laserCenter.x - blockCenter.x;
-            const dy = laserCenter.y - blockCenter.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            // Check if within block radius roughly
-            if (dist < this.gridSize.radius) {
-                // Destroy block
-                block.durability--;
-                this.state.addScore(10);
-
-                if (block.durability <= 0) {
-                    block.alive = false;
-                    this.state.addScore(50);
-                    this.state.incrementCombo();
-
-                    if (block.gemDrop === 'guaranteed' || (block.gemDrop !== 'infinite' && Math.random() < 0.15)) {
-                        this._spawnGem(block);
-                    }
-                }
-
-                this._updateUI();
-                // Laser penetrates, so don't break loop or destroy laser
-            }
-        }
-    }
-
-    /**
-     * Fire a laser
-     * @private
-     */
-    _fireLaser() {
-        // Fire from paddle center
-        const x = this.paddle.x;
-        const y = this.paddle.y - 10;
-        this.lasers.push(new Laser(x, y));
-
-        this.laserStock--;
-        if (this.laserStock <= 0) {
-            this.activeWeapon = null;
-        }
-        this._updateUI();
-    }
-
-    /**
-     * Render lasers
-     * @private
-     */
-    _renderLasers() {
-        const ctx = this.ctx;
-        for (const laser of this.lasers) {
-            laser.render(ctx);
-        }
+        // Render boss
+        this.bossSystem.render(this.ctx);
     }
 
     /**
@@ -1147,115 +676,34 @@ export class Game {
     }
 
     // =========================================================================
-    // Message System
+    // Message System Delegation
     // =========================================================================
 
     /**
-     * Show a message in the header area (スタック表示対応)
-     * @param {string} text - Message text
-     * @param {string} type - Message type ('info', 'success', 'warning', 'error')
-     * @param {number} duration - Display duration in ms (default: 3000)
+     * Show a message (delegated to GameMessageSystem)
      */
     showMessage(text, type = 'info', duration = 3000) {
-        const now = Date.now();
-        // Add to log
-        this._messageLog.push({ text, type, time: now });
-
-        // Get DOM elements
-        const hud = document.getElementById('header-hud');
-        const container = document.getElementById('header-message-container');
-        const stack = document.getElementById('header-message-stack');
-        const copyAllBtn = document.getElementById('header-message-copy-all');
-
-        if (!hud || !container || !stack) {
-            return;
-        }
-
-        // Hide HUD, show message container
-        hud.classList.add('hidden');
-        container.classList.add('visible');
-
-        // Create message item
-        const timeStr = new Date(now).toLocaleTimeString('ja-JP', {
-            hour: '2-digit', minute: '2-digit', second: '2-digit'
-        });
-
-        const item = document.createElement('div');
-        item.className = `header-message-item header-message-item--${type}`;
-        item.innerHTML = `
-            <span class="msg-time">${timeStr}</span>
-            <span class="msg-text">${text}</span>
-            <button class="msg-copy" title="コピー">📋</button>
-        `;
-
-        // Single message copy button
-        item.querySelector('.msg-copy').onclick = () => {
-            navigator.clipboard.writeText(text).then(() => {
-                item.querySelector('.msg-copy').textContent = '✓';
-                setTimeout(() => { item.querySelector('.msg-copy').textContent = '📋'; }, 1000);
-            });
-        };
-
-        stack.appendChild(item);
-        stack.scrollTop = stack.scrollHeight;
-
-        // Limit visible messages (keep last 5)
-        while (stack.children.length > 5) {
-            stack.removeChild(stack.firstChild);
-        }
-
-        // Setup copy all button (once)
-        if (copyAllBtn && !copyAllBtn._bound) {
-            copyAllBtn._bound = true;
-            copyAllBtn.onclick = () => {
-                const allText = this._messageLog
-                    .map(m => {
-                        const t = new Date(m.time).toLocaleTimeString('ja-JP', {
-                            hour: '2-digit', minute: '2-digit', second: '2-digit'
-                        });
-                        return `[${t}] [${m.type.toUpperCase()}] ${m.text}`;
-                    })
-                    .join('\n');
-                navigator.clipboard.writeText(allText).then(() => {
-                    copyAllBtn.textContent = '✓全部';
-                    setTimeout(() => { copyAllBtn.textContent = '📋全部'; }, 1000);
-                });
-            };
-        }
-        // メッセージはゲーム開始まで表示し続ける（タイマーで消さない）
+        this.messageSystem.showMessage(text, type, duration);
     }
 
     /**
-     * Hide messages and restore HUD (ゲーム開始時に呼び出す)
+     * Hide messages
      */
     hideMessages() {
-        const hud = document.getElementById('header-hud');
-        const container = document.getElementById('header-message-container');
-        const stack = document.getElementById('header-message-stack');
-
-        if (container) {
-            container.classList.remove('visible');
-        }
-        if (hud) {
-            hud.classList.remove('hidden');
-        }
-        if (stack) {
-            stack.innerHTML = '';
-        }
+        this.messageSystem.hideMessages();
     }
 
     /**
-     * Get message log for pause screen
-     * @returns {Array<{text: string, type: string, time: number}>}
+     * Get message log
      */
     getMessageLog() {
-        return this._messageLog;
+        return this.messageSystem.getMessageLog();
     }
 
     /**
      * Clear message log
      */
     clearMessageLog() {
-        this._messageLog = [];
+        this.messageSystem.clearMessageLog();
     }
 }
