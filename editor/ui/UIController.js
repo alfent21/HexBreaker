@@ -128,6 +128,13 @@ export class UIController {
             // Block render settings
             blockRenderToggle: document.getElementById('block-render-toggle'),
             blockRenderContent: document.getElementById('block-render-content'),
+            // Fill settings
+            fillUseBlockColor: document.getElementById('fill-use-block-color'),
+            fillColor: document.getElementById('fill-color'),
+            fillColorGroup: document.getElementById('fill-color-group'),
+            fillOpacity: document.getElementById('fill-opacity'),
+            fillOpacityValue: document.getElementById('fill-opacity-value'),
+            // Border settings
             borderColor: document.getElementById('border-color'),
             borderWidth: document.getElementById('border-width'),
             borderWidthValue: document.getElementById('border-width-value'),
@@ -889,79 +896,147 @@ export class UIController {
      * @private
      */
     _bindBlockRenderSettingsEvents() {
+        // 必須要素の検証（存在しなければエラーを出力）
+        const requiredElements = [
+            'blockRenderToggle',
+            'fillUseBlockColor', 'fillColor', 'fillOpacity', 'fillOpacityValue',
+            'borderColor', 'borderWidth', 'borderWidthValue',
+            'embossHighlightColor', 'embossHighlightOpacity', 'embossHighlightOpacityValue',
+            'embossShadowColor', 'embossShadowOpacity', 'embossShadowOpacityValue',
+            'embossWidth', 'embossWidthValue', 'embossInset', 'embossInsetValue'
+        ];
+
+        for (const name of requiredElements) {
+            if (!this.elements[name]) {
+                this._addMessage('error', `[UIController] 要素が見つかりません: ${name}`);
+            }
+        }
+
         // Collapsible toggle
-        this.elements.blockRenderToggle?.addEventListener('click', () => {
-            const section = this.elements.blockRenderToggle.closest('.collapsible');
-            section?.classList.toggle('collapsed');
-        });
+        if (this.elements.blockRenderToggle) {
+            this.elements.blockRenderToggle.addEventListener('click', () => {
+                const section = this.elements.blockRenderToggle.closest('.collapsible');
+                if (section) section.classList.toggle('collapsed');
+            });
+        }
+
+        // Fill: Use block color checkbox
+        if (this.elements.fillUseBlockColor) {
+            this.elements.fillUseBlockColor.addEventListener('change', (e) => {
+                const useBlockColor = e.target.checked;
+                RENDER_CONFIG.block.fill.color = useBlockColor ? null : this.elements.fillColor.value;
+                if (this.elements.fillColor) {
+                    this.elements.fillColor.disabled = useBlockColor;
+                }
+                this.editor.render();
+            });
+        }
+
+        // Fill color
+        if (this.elements.fillColor) {
+            this.elements.fillColor.addEventListener('input', (e) => {
+                if (this.elements.fillUseBlockColor && !this.elements.fillUseBlockColor.checked) {
+                    RENDER_CONFIG.block.fill.color = e.target.value;
+                    this.editor.render();
+                }
+            });
+        }
+
+        // Fill opacity
+        if (this.elements.fillOpacity) {
+            this.elements.fillOpacity.addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                RENDER_CONFIG.block.fill.opacity = value / 100;
+                if (this.elements.fillOpacityValue) {
+                    this.elements.fillOpacityValue.textContent = value;
+                }
+                this.editor.render();
+            });
+        }
 
         // Border color
-        this.elements.borderColor?.addEventListener('input', (e) => {
-            RENDER_CONFIG.block.border.color = e.target.value;
-            this.editor.render();
-        });
+        if (this.elements.borderColor) {
+            this.elements.borderColor.addEventListener('input', (e) => {
+                RENDER_CONFIG.block.border.color = e.target.value;
+                this.editor.render();
+            });
+        }
 
         // Border width
-        this.elements.borderWidth?.addEventListener('input', (e) => {
-            const value = parseFloat(e.target.value);
-            RENDER_CONFIG.block.border.widthRatio = value / 100;
-            if (this.elements.borderWidthValue) {
-                this.elements.borderWidthValue.textContent = value;
-            }
-            this.editor.render();
-        });
+        if (this.elements.borderWidth) {
+            this.elements.borderWidth.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                RENDER_CONFIG.block.border.widthRatio = value / 100;
+                if (this.elements.borderWidthValue) {
+                    this.elements.borderWidthValue.textContent = value;
+                }
+                this.editor.render();
+            });
+        }
 
         // Emboss highlight color
-        this.elements.embossHighlightColor?.addEventListener('input', (e) => {
-            RENDER_CONFIG.block.emboss.highlightColor = e.target.value;
-            this.editor.render();
-        });
+        if (this.elements.embossHighlightColor) {
+            this.elements.embossHighlightColor.addEventListener('input', (e) => {
+                RENDER_CONFIG.block.emboss.highlightColor = e.target.value;
+                this.editor.render();
+            });
+        }
 
         // Emboss highlight opacity
-        this.elements.embossHighlightOpacity?.addEventListener('input', (e) => {
-            const value = parseInt(e.target.value);
-            RENDER_CONFIG.block.emboss.highlightOpacity = value / 100;
-            if (this.elements.embossHighlightOpacityValue) {
-                this.elements.embossHighlightOpacityValue.textContent = value;
-            }
-            this.editor.render();
-        });
+        if (this.elements.embossHighlightOpacity) {
+            this.elements.embossHighlightOpacity.addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                RENDER_CONFIG.block.emboss.highlightOpacity = value / 100;
+                if (this.elements.embossHighlightOpacityValue) {
+                    this.elements.embossHighlightOpacityValue.textContent = value;
+                }
+                this.editor.render();
+            });
+        }
 
         // Emboss shadow color
-        this.elements.embossShadowColor?.addEventListener('input', (e) => {
-            RENDER_CONFIG.block.emboss.shadowColor = e.target.value;
-            this.editor.render();
-        });
+        if (this.elements.embossShadowColor) {
+            this.elements.embossShadowColor.addEventListener('input', (e) => {
+                RENDER_CONFIG.block.emboss.shadowColor = e.target.value;
+                this.editor.render();
+            });
+        }
 
         // Emboss shadow opacity
-        this.elements.embossShadowOpacity?.addEventListener('input', (e) => {
-            const value = parseInt(e.target.value);
-            RENDER_CONFIG.block.emboss.shadowOpacity = value / 100;
-            if (this.elements.embossShadowOpacityValue) {
-                this.elements.embossShadowOpacityValue.textContent = value;
-            }
-            this.editor.render();
-        });
+        if (this.elements.embossShadowOpacity) {
+            this.elements.embossShadowOpacity.addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                RENDER_CONFIG.block.emboss.shadowOpacity = value / 100;
+                if (this.elements.embossShadowOpacityValue) {
+                    this.elements.embossShadowOpacityValue.textContent = value;
+                }
+                this.editor.render();
+            });
+        }
 
         // Emboss width
-        this.elements.embossWidth?.addEventListener('input', (e) => {
-            const value = parseInt(e.target.value);
-            RENDER_CONFIG.block.emboss.lineWidthRatio = value / 100;
-            if (this.elements.embossWidthValue) {
-                this.elements.embossWidthValue.textContent = value;
-            }
-            this.editor.render();
-        });
+        if (this.elements.embossWidth) {
+            this.elements.embossWidth.addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                RENDER_CONFIG.block.emboss.lineWidthRatio = value / 100;
+                if (this.elements.embossWidthValue) {
+                    this.elements.embossWidthValue.textContent = value;
+                }
+                this.editor.render();
+            });
+        }
 
         // Emboss inset
-        this.elements.embossInset?.addEventListener('input', (e) => {
-            const value = parseInt(e.target.value);
-            RENDER_CONFIG.block.emboss.insetRatio = value / 100;
-            if (this.elements.embossInsetValue) {
-                this.elements.embossInsetValue.textContent = value;
-            }
-            this.editor.render();
-        });
+        if (this.elements.embossInset) {
+            this.elements.embossInset.addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                RENDER_CONFIG.block.emboss.insetRatio = value / 100;
+                if (this.elements.embossInsetValue) {
+                    this.elements.embossInsetValue.textContent = value;
+                }
+                this.editor.render();
+            });
+        }
     }
 
     /**
@@ -969,9 +1044,27 @@ export class UIController {
      * @private
      */
     _updateBlockRenderSettingsUI() {
+        const fill = RENDER_CONFIG.block.fill;
         const border = RENDER_CONFIG.block.border;
         const emboss = RENDER_CONFIG.block.emboss;
 
+        // Fill settings
+        if (this.elements.fillUseBlockColor) {
+            this.elements.fillUseBlockColor.checked = fill.color === null;
+        }
+        if (this.elements.fillColor) {
+            this.elements.fillColor.value = fill.color || '#888888';
+            this.elements.fillColor.disabled = fill.color === null;
+        }
+        if (this.elements.fillOpacity) {
+            const value = Math.round(fill.opacity * 100);
+            this.elements.fillOpacity.value = value;
+            if (this.elements.fillOpacityValue) {
+                this.elements.fillOpacityValue.textContent = value;
+            }
+        }
+
+        // Border settings
         if (this.elements.borderColor) {
             this.elements.borderColor.value = border.color;
         }
@@ -1024,6 +1117,7 @@ export class UIController {
      */
     getBlockRenderSettings() {
         return {
+            fill: { ...RENDER_CONFIG.block.fill },
             border: { ...RENDER_CONFIG.block.border },
             emboss: { ...RENDER_CONFIG.block.emboss }
         };
@@ -1034,6 +1128,9 @@ export class UIController {
      * @param {Object} settings
      */
     applyBlockRenderSettings(settings) {
+        if (settings?.fill) {
+            Object.assign(RENDER_CONFIG.block.fill, settings.fill);
+        }
         if (settings?.border) {
             Object.assign(RENDER_CONFIG.block.border, settings.border);
         }

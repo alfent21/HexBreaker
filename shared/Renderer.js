@@ -14,6 +14,11 @@ import { getHexVertices } from './HexMath.js';
 export const RENDER_CONFIG = {
     block: {
         gap: 2,  // Gap between blocks (radius reduction)
+        // 塗り設定
+        fill: {
+            color: null,      // null = ブロック色を使用
+            opacity: 1.0      // 0.0-1.0
+        },
         // 境界線設定（画像クリッピング時）
         border: {
             color: '#ffffff',
@@ -108,22 +113,37 @@ export function drawHexBlock(ctx, centerX, centerY, radius, color, options = {})
     }
     ctx.closePath();
 
+    // 塗り設定を取得
+    const fillConfig = RENDER_CONFIG.block.fill;
+    const fillColor = fillConfig.color || color;
+    const fillOpacity = fillConfig.opacity;
+
     // Fill with color or clipped image
     if (clipImage) {
+        // 1. 画像をクリップして描画（最下層）
         ctx.save();
         ctx.clip();
         ctx.drawImage(clipImage, 0, 0);
         ctx.restore();
 
-        // 境界線を描画（gap=0 の場合、太さが0%なら描画しない）
+        // 2. 塗り設定を画像の上に適用（オーバーレイ）
+        // パスを再構築
+        ctx.beginPath();
+        ctx.moveTo(vertices[0].x, vertices[0].y);
+        for (let i = 1; i < vertices.length; i++) {
+            ctx.lineTo(vertices[i].x, vertices[i].y);
+        }
+        ctx.closePath();
+
+        ctx.save();
+        ctx.globalAlpha = fillOpacity;
+        ctx.fillStyle = fillColor;
+        ctx.fill();
+        ctx.restore();
+
+        // 3. 境界線を描画
         const borderConfig = RENDER_CONFIG.block.border;
         if (borderConfig.widthRatio > 0) {
-            ctx.beginPath();
-            ctx.moveTo(vertices[0].x, vertices[0].y);
-            for (let i = 1; i < vertices.length; i++) {
-                ctx.lineTo(vertices[i].x, vertices[i].y);
-            }
-            ctx.closePath();
             ctx.strokeStyle = borderConfig.color;
             ctx.lineWidth = Math.max(1, actualRadius * borderConfig.widthRatio);
             ctx.lineCap = 'round';
@@ -131,8 +151,12 @@ export function drawHexBlock(ctx, centerX, centerY, radius, color, options = {})
             ctx.stroke();
         }
     } else {
-        ctx.fillStyle = color;
+        // 通常ブロック: 塗り設定を適用
+        ctx.save();
+        ctx.globalAlpha = fillOpacity;
+        ctx.fillStyle = fillColor;
         ctx.fill();
+        ctx.restore();
     }
 
     // Draw emboss effect (inside the hex)

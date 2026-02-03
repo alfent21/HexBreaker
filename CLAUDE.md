@@ -209,6 +209,34 @@ try {
 
 フォールバックは**機能が完成し、本番環境でのイレギュラー対応が必要になった段階**で初めて検討すること。
 
+### サイレント失敗の禁止（Optional Chaining）
+
+**開発段階では Optional Chaining (`?.`) の安易な使用を禁止する。**
+
+Optional Chaining は「値がなければ undefined を返す」という動作で、事実上のサイレントフォールバックとして機能する：
+
+```javascript
+// ❌ 悪い例: サイレント失敗
+this.elements.fillOpacity?.addEventListener('input', handler);
+// → 要素が見つからなくても何も起きない = バグに気づけない
+
+// ✅ 良い例: 明示的な検証
+if (!this.elements.fillOpacity) {
+    throw new Error('[UIController] fillOpacity element not found');
+}
+this.elements.fillOpacity.addEventListener('input', handler);
+
+// ✅ 許容: null/undefined が正常なケース（明示的なコメント付き）
+// stage は未選択時に null になりうる（正常）
+const stage = editor.stageManager?.getCurrentStage();
+if (!stage) return { x, y, snapped: false }; // 早期リターンで明示
+```
+
+**原則:**
+1. **DOM要素取得後は必ず存在確認** - `getElementById` の結果が null なら即座にエラー
+2. **`?.` を使う場合はコメントで理由を明記** - なぜ null が許容されるのか
+3. **イベントリスナー登録で `?.` を使わない** - 登録失敗は致命的なバグ
+
 ### コード重複を避けるパターン
 
 | 処理 | 使用するサービス |

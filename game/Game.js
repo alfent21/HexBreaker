@@ -263,6 +263,9 @@ export class Game {
      * @private
      */
     _applyBlockRenderSettings(settings) {
+        if (settings.fill) {
+            Object.assign(RENDER_CONFIG.block.fill, settings.fill);
+        }
         if (settings.border) {
             Object.assign(RENDER_CONFIG.block.border, settings.border);
         }
@@ -271,9 +274,10 @@ export class Game {
         }
 
         // 確認メッセージ
+        const fillOpacity = Math.round((settings.fill?.opacity || 1) * 100);
         const borderWidth = Math.round((settings.border?.widthRatio || 0) * 100);
         const embossWidth = Math.round((settings.emboss?.lineWidthRatio || 0) * 100);
-        this.showMessage(`描画設定: 境界線${borderWidth}% エンボス${embossWidth}%`, 'info');
+        this.showMessage(`描画設定: 塗り${fillOpacity}% 境界線${borderWidth}% エンボス${embossWidth}%`, 'info');
     }
 
     /**
