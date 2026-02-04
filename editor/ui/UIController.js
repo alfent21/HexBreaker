@@ -285,6 +285,14 @@ export class UIController {
         this.elements.openBtn?.addEventListener('click', () => this._openProject());
         this.elements.saveBtn?.addEventListener('click', () => this._saveProject());
 
+        // Undo/Redo buttons
+        if (this.elements.undoBtn) {
+            this.elements.undoBtn.addEventListener('click', () => this.editor.undo());
+        }
+        if (this.elements.redoBtn) {
+            this.elements.redoBtn.addEventListener('click', () => this.editor.redo());
+        }
+
         // Grid and line toggles
         this.elements.gridToggle?.addEventListener('change', (e) => {
             this.editor.renderSystem.showGrid = e.target.checked;
@@ -312,8 +320,8 @@ export class UIController {
         document.getElementById('menu-save')?.addEventListener('click', () => this._saveProject());
         document.getElementById('menu-save-as')?.addEventListener('click', () => this._saveProjectAs());
         document.getElementById('menu-export')?.addEventListener('click', () => this._exportStage());
-        document.getElementById('menu-undo')?.addEventListener('click', () => this.editor.undo?.());
-        document.getElementById('menu-redo')?.addEventListener('click', () => this.editor.redo?.());
+        document.getElementById('menu-undo')?.addEventListener('click', () => this.editor.undo());
+        document.getElementById('menu-redo')?.addEventListener('click', () => this.editor.redo());
         document.getElementById('menu-toggle-grid')?.addEventListener('click', () => this.editor.toggleGrid());
         document.getElementById('menu-toggle-lines')?.addEventListener('click', () => this.editor.toggleLines());
         document.getElementById('menu-reset-view')?.addEventListener('click', () => this.editor.resetView());

@@ -312,7 +312,19 @@ export class ContextMenuController {
      */
     async _handleClearBlocks(layer) {
         if (layer.type === 'block' && await dialogService.confirm('すべてのブロックを削除しますか？', { type: 'danger' })) {
+            this.editor.beginAction();
+            // Record each block for undo
+            for (const [key, block] of layer.blocks) {
+                this.editor.historySystem.recordChange({
+                    type: 'block',
+                    layerId: layer.id,
+                    key,
+                    oldValue: { ...block },
+                    newValue: null
+                });
+            }
             layer.blocks.clear();
+            this.editor.endAction();
             this.editor.render();
             this._addMessage('info', 'ブロックをクリアしました');
         }

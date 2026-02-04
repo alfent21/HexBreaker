@@ -1,135 +1,66 @@
-# Handover - 2026-02-02
+# Handover - 2026-02-04
 
 プロジェクト「HexBreaker」の現状と次回作業の引継ぎ情報です。
 
 ## 今回のセッション完了作業
 
-### 1. ブロック描画設定のゲーム連携
-- RENDER_CONFIG をパーセンテージベースに変更（境界線・エンボス）
-- エディター設定ダイアログに「ブロック描画」タブを追加
-- プレビュー/エクスポート時に `blockRenderSettings` をゲームに転送
-- ゲームでのブロック画像クリッピング描画を実装
+### Undo/Redo機能の実装（HistorySystem移植）
 
-### 2. メッセージシステム改善
-- メッセージをスタック表示（最大5件）に変更
-- 全履歴コピー機能追加（📋全部ボタン）
-- メッセージはゲーム開始時（ボール発射）まで表示を維持
-- `hideMessages()` を `_launchBall()` から呼び出し
+Hexposedの`HistorySystem.js`をHexBreakerに移植・適応。
 
-### 3. グリッド/ブロック境界チェック
-- `shared/HexMath.js` に `getMaxRow()`, `getMaxCol()`, `isValidHexPosition()` 追加
-- `BlockManager` に `isValidPosition()` メソッド追加
-- `RenderSystem._drawGrid()` の範囲計算を修正
+#### 新規作成ファイル
+| ファイル | 役割 |
+|---------|------|
+| `editor/systems/HistorySystem.js` | Undo/Redoの中核システム（~250行） |
 
-### 4. レイヤーUI改善
-- ベースバッジを右寄せ（`margin-left: auto`）
-- ベースレイヤーの右クリックメニュー対応（名前変更、画像差し替え）
-
-### 5. ドキュメント更新
-- `CLAUDE.md` にデバッグ出力の原則（F12禁止）を追加
-
----
-
-## 未実装: Undo機能
-
-### 問題の概要
-**「元に戻す」(Undo)機能が完全に未実装**
-
-### 調査結果
-
-| 項目 | 状態 |
-|------|------|
-| Ctrl+Z キーバインド | ✅ 実装済み（Events.js:641-644 で `'undo'` イベントをemit） |
-| `'undo'` イベントハンドラ | ❌ **未実装**（Editor.jsに登録なし） |
-| HistorySystem クラス | ❌ **未移植**（HexBreakerに存在しない） |
-| UIボタン (btn-undo) | ✅ HTML上に存在するが機能しない |
-
-### 原因
-前身プロジェクト **Hexposed** には `HistorySystem.js` が存在するが、**HexBreakerには移植されていない**。
-
-### 参考ファイル
-```
-E:\サイドビジネス\自作ツール類\Hexposed\editor\systems\HistorySystem.js
-```
-- 完全な実装（247行）
-- ブロック変更とライン変更の両方に対応
-- `beginAction()` / `recordChange()` / `endAction()` パターン
-
-### 必要な作業
-
-1. **HistorySystem.jsをHexBreakerに移植**
-   - `editor/systems/HistorySystem.js` として作成
-
-2. **Editor.jsにHistorySystemを統合**
-   ```javascript
-   import { HistorySystem } from '../systems/HistorySystem.js';
-
-   constructor() {
-       // ...
-       this.historySystem = new HistorySystem(this);
-   }
-
-   // イベントハンドラ登録
-   this.on('undo', () => this.historySystem.undo());
-   this.on('redo', () => this.historySystem.redo());
-   ```
-
-3. **BlockManagerに履歴記録を追加**
-   - `placeBlock()`, `eraseBlock()`, `placeWithBrush()` などの操作前後で履歴記録
-   - Hexposedの `applyBlockChange()` を参考に `this.editor.blockManager` に適応
-
-4. **LineManagerに履歴記録を追加**（任意）
-
-5. **ステージ切り替え時に履歴クリア**
-   ```javascript
-   this.stageManager.onCurrentStageChange = (stage) => {
-       this.historySystem.clear();
-       // ...
-   };
-   ```
-
-### 注意点
-- HexBreakerはLayerManager経由でブロックを管理（Hexposedとは構造が異なる）
-- `applyBlockChange()` 内の `this.editor.blocks` を `this.editor.blockManager` または `this.editor.layerManager` に適応させる必要あり
-
----
-
-## 今回のコミット
-
-**コミット:** `d3490b7`
-```
-feat: ブロック描画設定のゲーム連携とメッセージシステム改善
-
-- ブロック描画設定（境界線・エンボス）をパーセンテージベースに変更
-- エディター設定ダイアログにブロック描画タブを追加
-- プレビュー/エクスポート時にblockRenderSettingsをゲームに転送
-- ゲームでのブロック画像クリッピング描画を実装
-- メッセージをスタック表示（最大5件）に変更、全履歴コピー機能追加
-- メッセージはゲーム開始時（ボール発射）まで表示を維持
-- グリッド描画とブロック配置に境界チェックを追加
-- レイヤーUIのベースバッジを右寄せ、コンテキストメニュー対応
-- CLAUDE.mdにデバッグ出力の原則（F12禁止）を追加
-```
-
----
-
-## ファイル変更サマリー（今回）
-
+#### 変更ファイル
 | ファイル | 変更内容 |
 |---------|---------|
-| `shared/Renderer.js` | RENDER_CONFIG をパーセンテージベースに変更 |
-| `shared/HexMath.js` | 境界チェック用ユーティリティ関数追加 |
-| `editor/ui/UIController.js` | 設定ダイアログにブロック描画タブ追加 |
-| `editor/systems/SerializationService.js` | blockRenderSettings のシリアライズ対応 |
-| `editor/systems/ProjectFileSystem.js` | プレビュー/保存に blockRenderSettings 追加 |
-| `editor/managers/BlockManager.js` | 境界チェック追加 |
-| `editor/systems/RenderSystem.js` | グリッド描画範囲修正 |
-| `game/Game.js` | ブロック描画設定適用、メッセージスタック表示 |
-| `game/GameState.js` | sourceLayerId 保持 |
-| `game_index.html` | メッセージコンテナHTML追加 |
-| `css/game.css` | メッセージスタックスタイル追加 |
-| `css/editor.css` | レイヤーバッジ右寄せ、設定ダイアログスタイル |
-| `CLAUDE.md` | デバッグ出力の原則追加 |
+| `editor/core/Editor.js` | HistorySystem統合、ラッパーメソッド(beginAction/endAction/undo/redo)、イベント登録 |
+| `editor/managers/BlockManager.js` | 全操作メソッドに`_recordHistory()`追加、`_suppressNotify`フラグ |
+| `editor/managers/LineManager.js` | editor参照追加、全操作メソッドに`_recordHistory()`追加、`_suppressNotify`フラグ |
+| `editor/core/Events.js` | `beginAction()`/`endAction()`の呼び出し（ブラシ/消しゴム/フィル/ライン/Delete/Enter） |
+| `editor/ui/UIController.js` | Undo/Redoツールバーボタンのイベント登録、optional chaining除去 |
+| `editor/ui/controllers/ContextMenuController.js` | 「ブロックをクリア」にundo対応 |
+
+#### 設計ポイント
+- **マルチレイヤー対応**: 変更記録に`layerId`を含め、Undo時に正しいレイヤーのblocksを操作
+- **ラインID基準**: Hexposedのindex基準からID基準に変更（`lines.findIndex(l => l.id === ...)`）
+- **通知制御**: `_suppressNotify`フラグでUndo/Redo中の多重通知を抑制、完了後にまとめてsync/render
+- **頂点ドラッグ**: `moveVertex()`内では記録せず、Events.jsでdrag開始時のライン状態を保存し、drag終了時にbefore/after差分を記録
+- **アクション単位**: 1回のドラッグ操作（複数セルのブラシ配置等）は1つのUndoステップにまとまる
+
+#### 対象外（未実装）
+- **Blockify操作のUndo**: LayerManager経由で直接blocks Mapにセットするため、BlockManagerを通らない
+- **レイヤー追加/削除のUndo**: レイヤー構造変更のUndoは複雑すぎるため除外
 
 ---
-更新日時: 2026-02-02
+
+## 既知の問題
+
+### `addLine` メソッド不在
+- `Editor.js` L549, L600 で `this.lineManager.addLine(...)` を呼んでいるが、LineManagerには`addLine`メソッドが存在しない
+- `createLine()`が対応するメソッド
+- `_generatePresetLines()` 内でのみ使用されており、ウィザードからのプロジェクト作成時にエラーになる可能性あり
+- 修正案: `addLine` を `createLine` のエイリアスとして追加、または呼び出し側を修正
+
+---
+
+## 検証チェックリスト
+
+- [ ] ブラシ配置 → Ctrl+Z で消える → Ctrl+Y で戻る
+- [ ] 消しゴム → Ctrl+Z で復元
+- [ ] フラッドフィル → Ctrl+Z で元の耐久度に戻る
+- [ ] 範囲選択 → Delete → Ctrl+Z で復元
+- [ ] 範囲選択 → Enter → Ctrl+Z で消える
+- [ ] ライン描画 → Ctrl+Z でライン消去
+- [ ] ライン削除 → Ctrl+Z で復元
+- [ ] 頂点ドラッグ → Ctrl+Z で元位置に戻る
+- [ ] 頂点挿入/削除 → Ctrl+Z で元に戻る
+- [ ] ステージ切り替え → 履歴がクリアされること
+- [ ] Undo/Redoボタンの有効/無効が正しく連動
+- [ ] コンテキストメニュー「ブロックをクリア」→ Ctrl+Z で復元
+- [ ] Undo/Redoツールバーボタンが機能すること
+
+---
+更新日時: 2026-02-04

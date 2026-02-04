@@ -26,6 +26,9 @@ export class BlockManager {
         // Selection state
         this.selectedHexes = new Set();
 
+        // Undo/Redo: suppress notifications during batch apply
+        this._suppressNotify = false;
+
         // Event callbacks
         this.onBlockChange = null;
     }
@@ -143,6 +146,7 @@ export class BlockManager {
         if (!this.isValidPosition(row, col)) return false;
 
         const key = getHexKey(row, col);
+        const oldBlock = layer.blocks.get(key) || null;
         const blockData = {
             row,
             col,
@@ -151,6 +155,7 @@ export class BlockManager {
             ...options
         };
 
+        this._recordHistory(layer.id, key, oldBlock, blockData);
         layer.blocks.set(key, blockData);
         this._emitChange();
         return true;
@@ -173,6 +178,7 @@ export class BlockManager {
         for (const cell of cells) {
             if (this.isValidPosition(cell.row, cell.col)) {
                 const key = getHexKey(cell.row, cell.col);
+                const oldBlock = layer.blocks.get(key) || null;
                 const blockData = {
                     row: cell.row,
                     col: cell.col,
@@ -180,6 +186,7 @@ export class BlockManager {
                     color: options.color ?? this.currentColor,
                     ...options
                 };
+                this._recordHistory(layer.id, key, oldBlock, blockData);
                 layer.blocks.set(key, blockData);
                 count++;
             }
@@ -202,12 +209,13 @@ export class BlockManager {
         if (!layer) return false;
 
         const key = getHexKey(row, col);
-        const removed = layer.blocks.delete(key);
+        const oldBlock = layer.blocks.get(key) || null;
+        if (!oldBlock) return false;
 
-        if (removed) {
-            this._emitChange();
-        }
-        return removed;
+        this._recordHistory(layer.id, key, oldBlock, null);
+        layer.blocks.delete(key);
+        this._emitChange();
+        return true;
     }
 
     /**
@@ -225,7 +233,10 @@ export class BlockManager {
 
         for (const cell of cells) {
             const key = getHexKey(cell.row, cell.col);
-            if (layer.blocks.delete(key)) {
+            const oldBlock = layer.blocks.get(key);
+            if (oldBlock) {
+                this._recordHistory(layer.id, key, oldBlock, null);
+                layer.blocks.delete(key);
                 count++;
             }
         }
@@ -279,7 +290,9 @@ export class BlockManager {
         const block = layer.blocks.get(key);
         if (!block) return false;
 
+        const oldBlock = { ...block };
         Object.assign(block, updates);
+        this._recordHistory(layer.id, key, oldBlock, { ...block });
         this._emitChange();
         return true;
     }
@@ -317,10 +330,15 @@ export class BlockManager {
             const block = layer.blocks.get(key);
             if (!block || block.durability !== targetDurability) continue;
 
+            // Record before update
+            const oldBlock = { ...block };
+
             // Update this block
             block.durability = newDurability;
             block.color = this.getDurabilityColor(newDurability);
             count++;
+
+            this._recordHistory(layer.id, key, oldBlock, { ...block });
 
             // Add neighbors to queue
             const neighbors = getHexNeighbors(current.row, current.col);
@@ -390,12 +408,14 @@ export class BlockManager {
         let count = 0;
         for (const key of this.selectedHexes) {
             const { row, col } = parseHexKey(key);
+            const oldBlock = layer.blocks.get(key) || null;
             const blockData = {
                 row,
                 col,
                 durability: this.currentDurability,
                 color: this.currentColor
             };
+            this._recordHistory(layer.id, key, oldBlock, blockData);
             layer.blocks.set(key, blockData);
             count++;
         }
@@ -416,7 +436,10 @@ export class BlockManager {
 
         let count = 0;
         for (const key of this.selectedHexes) {
-            if (layer.blocks.delete(key)) {
+            const oldBlock = layer.blocks.get(key);
+            if (oldBlock) {
+                this._recordHistory(layer.id, key, oldBlock, null);
+                layer.blocks.delete(key);
                 count++;
             }
         }
@@ -458,6 +481,10 @@ export class BlockManager {
     clearAllBlocks() {
         const layer = this.getActiveBlockLayer();
         if (layer) {
+            // Record each block for undo
+            for (const [key, block] of layer.blocks) {
+                this._recordHistory(layer.id, key, block, null);
+            }
             layer.blocks.clear();
             this._emitChange();
         }
@@ -468,8 +495,31 @@ export class BlockManager {
      * @private
      */
     _emitChange() {
+        if (this._suppressNotify) return;
         if (this.onBlockChange) {
             this.onBlockChange();
+        }
+    }
+
+    /**
+     * Record a block change to the history system if an action is being recorded.
+     * @private
+     * @param {number} layerId
+     * @param {string} key
+     * @param {Object|null} oldValue
+     * @param {Object|null} newValue
+     */
+    _recordHistory(layerId, key, oldValue, newValue) {
+        // editor.historySystem は初期化前に null の場合がある（正常）
+        const history = this.editor?.historySystem;
+        if (history && history.currentAction) {
+            history.recordChange({
+                type: 'block',
+                layerId,
+                key,
+                oldValue: oldValue ? { ...oldValue } : null,
+                newValue: newValue ? { ...newValue } : null
+            });
         }
     }
 }

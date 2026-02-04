@@ -17,6 +17,7 @@ import { StageManager } from '../managers/StageManager.js';
 import { StartupManager } from '../managers/StartupManager.js';
 import { RenderSystem } from '../systems/RenderSystem.js';
 import { createProjectFileSystem } from '../systems/ProjectFileSystem.js';
+import { HistorySystem } from '../systems/HistorySystem.js';
 import { dialogService } from '../ui/DialogService.js';
 
 export class Editor {
@@ -32,6 +33,10 @@ export class Editor {
         this.layerManager = new LayerManager();
         this.blockManager = new BlockManager(this.layerManager, this);
         this.lineManager = new LineManager();
+        this.lineManager.editor = this; // HistorySystem アクセス用
+
+        // History (Undo/Redo)
+        this.historySystem = new HistorySystem(this);
         this.renderSystem = null;
         this.events = null;
 
@@ -86,6 +91,13 @@ export class Editor {
 
         this.isInitialized = true;
 
+        // Register undo/redo event handlers
+        this.on('undo', () => this.undo());
+        this.on('redo', () => this.redo());
+
+        // Set initial button states
+        this.historySystem.updateButtons();
+
         // Initial render
         this.render();
 
@@ -131,6 +143,7 @@ export class Editor {
         };
 
         this.stageManager.onCurrentStageChange = (stage) => {
+            this.historySystem.clear();
             this._loadStageData(stage);
             this.emit('currentStageChanged', stage);
         };
@@ -307,6 +320,37 @@ export class Editor {
             return { width: CANVAS_CONFIG.defaultWidth, height: CANVAS_CONFIG.defaultHeight };
         }
         return stage.canvas;
+    }
+
+    // --- History (Undo/Redo) ---
+
+    /**
+     * Begin recording an undoable action.
+     * All changes until endAction() are grouped as one undo step.
+     */
+    beginAction() {
+        this.historySystem.beginAction();
+    }
+
+    /**
+     * End the current action and push to undo stack.
+     */
+    endAction() {
+        this.historySystem.endAction();
+    }
+
+    /**
+     * Undo the last action.
+     */
+    undo() {
+        this.historySystem.undo();
+    }
+
+    /**
+     * Redo the last undone action.
+     */
+    redo() {
+        this.historySystem.redo();
     }
 
     /**
@@ -546,7 +590,7 @@ export class Editor {
             }
 
             if (points.length > 0) {
-                this.lineManager.addLine({
+                this.lineManager.createLine({
                     type: 'paddle',
                     points,
                     color: '#00FF00',
@@ -597,7 +641,7 @@ export class Editor {
             }
 
             if (points.length > 0) {
-                this.lineManager.addLine({
+                this.lineManager.createLine({
                     type: 'missline',
                     points,
                     color: '#FF0000',

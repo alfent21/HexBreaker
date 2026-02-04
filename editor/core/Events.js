@@ -26,6 +26,11 @@ export class Events {
         this.lastMouseX = 0;
         this.lastMouseY = 0;
 
+        // Undo: track whether we have an active action for the current drag
+        this._actionActive = false;
+        // Undo: line state at drag start (for vertex drag undo)
+        this._dragStartLine = null;
+
         // Keys
         this.shiftPressed = false;
         this.ctrlPressed = false;
@@ -166,6 +171,8 @@ export class Events {
         switch (tool) {
             case TOOLS.BRUSH:
                 this.isDragging = true;
+                this.editor.beginAction();
+                this._actionActive = true;
                 if (this.shiftPressed) {
                     // Eraser mode
                     this.editor.blockManager.eraseWithBrush(hex.row, hex.col);
@@ -177,6 +184,8 @@ export class Events {
 
             case TOOLS.ERASER:
                 this.isDragging = true;
+                this.editor.beginAction();
+                this._actionActive = true;
                 this.editor.blockManager.eraseWithBrush(hex.row, hex.col);
                 this.editor.render();
                 break;
@@ -184,10 +193,12 @@ export class Events {
             case TOOLS.FILL:
                 const block = this.editor.blockManager.getBlock(hex.row, hex.col);
                 if (block) {
+                    this.editor.beginAction();
                     this.editor.blockManager.floodFill(
                         hex.row, hex.col,
                         this.editor.blockManager.currentDurability
                     );
+                    this.editor.endAction();
                     this.editor.render();
                 }
                 break;
@@ -219,12 +230,16 @@ export class Events {
         const lineManager = this.editor.lineManager;
 
         if (!lineManager.isDrawing) {
-            // Check if clicking on existing line vertex
+            // Check if clicking on existing line vertex (start drag)
             const vertexHit = lineManager.findVertexAt(coords.x, coords.y);
             if (vertexHit) {
                 lineManager.selectLine(vertexHit.line.id);
                 lineManager.selectVertex(vertexHit.vertexIndex);
                 this.isDragging = true;
+                // Save line state before drag for undo
+                this.editor.beginAction();
+                this._actionActive = true;
+                this._dragStartLine = JSON.parse(JSON.stringify(vertexHit.line));
                 this.editor.render();
                 return;
             }
@@ -237,14 +252,22 @@ export class Events {
                 return;
             }
 
-            // Start new line with snap
+            // Start new line drawing with snap
             lineManager.selectLine(null);
+            this.editor.beginAction();
+            this._actionActive = true;
             const snapStart = SnapHelper.getSnapPoint(coords.x, coords.y, this.editor);
             lineManager.startDrawing(snapStart.x, snapStart.y);
         } else {
             // Add point to current line with snap
             const snapPoint = SnapHelper.getSnapPoint(coords.x, coords.y, this.editor);
             lineManager.addPoint(snapPoint.x, snapPoint.y);
+
+            // addPoint may trigger finishDrawing internally (loop close / same-point click)
+            if (!lineManager.isDrawing && this._actionActive) {
+                this.editor.endAction();
+                this._actionActive = false;
+            }
         }
 
         this.editor.render();
@@ -366,6 +389,7 @@ export class Events {
      * @private
      */
     _onMouseUp(e) {
+        const wasDragging = this.isDragging;
         this.isDragging = false;
         this.isPanning = false;
 
@@ -375,9 +399,27 @@ export class Events {
             this.updateCursor();
         }
 
-        // Finish selection
-        if (this.editor.currentTool === TOOLS.SELECT) {
-            // Selection is already updated in mousemove
+        // End undo action for brush/eraser drag
+        if (wasDragging && this._actionActive) {
+            const tool = this.editor.currentTool;
+
+            // Handle vertex drag: record the before/after diff
+            if (tool === TOOLS.LINE && this._dragStartLine) {
+                const currentLine = this.editor.lineManager.getLine(this._dragStartLine.id);
+                if (currentLine) {
+                    this.editor.historySystem.recordChange({
+                        type: 'line',
+                        action: 'update',
+                        lineId: currentLine.id,
+                        oldLine: this._dragStartLine,
+                        newLine: JSON.parse(JSON.stringify(currentLine))
+                    });
+                }
+                this._dragStartLine = null;
+            }
+
+            this.editor.endAction();
+            this._actionActive = false;
         }
 
         // Deselect vertex
@@ -404,18 +446,25 @@ export class Events {
 
         if (this.editor.currentTool === TOOLS.LINE) {
             if (this.editor.lineManager.isDrawing) {
-                // Finish drawing
+                // Finish drawing (beginAction was called in _handleLineTool)
                 this.editor.lineManager.finishDrawing(false);
+                // End the action that was started when drawing began
+                if (this._actionActive) {
+                    this.editor.endAction();
+                    this._actionActive = false;
+                }
                 this.editor.render();
             } else if (this.editor.lineManager.selectedLineId) {
                 // Insert vertex on selected line
                 const lineHit = this.editor.lineManager.findLineAt(coords.x, coords.y);
                 if (lineHit && lineHit.line.id === this.editor.lineManager.selectedLineId) {
+                    this.editor.beginAction();
                     this.editor.lineManager.insertVertex(
                         lineHit.line.id,
                         lineHit.segmentIndex,
                         coords.x, coords.y
                     );
+                    this.editor.endAction();
                     this.editor.render();
                 }
             }
@@ -463,6 +512,11 @@ export class Events {
                 // undoLastPoint returns false if only 1 point remains - cancel entirely
                 if (!this.editor.lineManager.undoLastPoint()) {
                     this.editor.lineManager.cancelDrawing();
+                    // End the action that was started when drawing began
+                    if (this._actionActive) {
+                        this.editor.endAction();
+                        this._actionActive = false;
+                    }
                 }
                 this.editor.render();
                 return;
@@ -471,7 +525,9 @@ export class Events {
             // Delete vertex if right-clicking on one
             const vertexHit = this.editor.lineManager.findVertexAt(coords.x, coords.y);
             if (vertexHit && this.editor.lineManager.selectedLineId === vertexHit.line.id) {
+                this.editor.beginAction();
                 this.editor.lineManager.deleteVertex(vertexHit.line.id, vertexHit.vertexIndex);
+                this.editor.endAction();
                 this.editor.render();
                 return;
             }
@@ -596,6 +652,11 @@ export class Events {
         if (e.code === 'Escape') {
             if (this.editor.lineManager.isDrawing) {
                 this.editor.lineManager.cancelDrawing();
+                // End the action that was started when drawing began (empty action is auto-discarded)
+                if (this._actionActive) {
+                    this.editor.endAction();
+                    this._actionActive = false;
+                }
                 this.editor.render();
             }
             this.editor.blockManager.clearSelection();
@@ -606,12 +667,16 @@ export class Events {
         if (e.code === 'Delete') {
             // Delete selected line
             if (this.editor.lineManager.selectedLineId) {
+                this.editor.beginAction();
                 this.editor.lineManager.deleteLine(this.editor.lineManager.selectedLineId);
+                this.editor.endAction();
                 this.editor.render();
             }
             // Delete selected blocks
             if (this.editor.blockManager.selectedHexes.size > 0) {
+                this.editor.beginAction();
                 this.editor.blockManager.deleteSelection();
+                this.editor.endAction();
                 this.editor.render();
             }
         }
@@ -619,7 +684,9 @@ export class Events {
         // Enter - fill selection
         if (e.code === 'Enter') {
             if (this.editor.blockManager.selectedHexes.size > 0) {
+                this.editor.beginAction();
                 this.editor.blockManager.fillSelection();
+                this.editor.endAction();
                 this.editor.blockManager.clearSelection();
                 this.editor.render();
             }

@@ -43,6 +43,13 @@ export class LineManager {
         this.currentThickness = LINE_DEFAULTS.thickness;
         this.currentOpacity = LINE_DEFAULTS.opacity;
 
+        // Editor reference (set by Editor.js after construction)
+        // null during initialization, assigned before any user operations
+        this.editor = null;
+
+        // Undo/Redo: suppress notifications during batch apply
+        this._suppressNotify = false;
+
         // Event callbacks
         this.onLineChange = null;
         this.onSelectionChange = null;
@@ -171,6 +178,10 @@ export class LineManager {
         }
 
         this.lines.push(line);
+        this._recordHistory({
+            action: 'add',
+            line: JSON.parse(JSON.stringify(line))
+        });
         this._emitChange();
 
         return line;
@@ -211,6 +222,12 @@ export class LineManager {
         const index = this.lines.findIndex(l => l.id === id);
         if (index === -1) return false;
 
+        const line = this.lines[index];
+        this._recordHistory({
+            action: 'remove',
+            line: JSON.parse(JSON.stringify(line))
+        });
+
         this.lines.splice(index, 1);
 
         if (this.selectedLineId === id) {
@@ -232,6 +249,8 @@ export class LineManager {
         const line = this.getLine(id);
         if (!line) return false;
 
+        const oldLine = JSON.parse(JSON.stringify(line));
+
         // Update color if type changes
         if (updates.type && updates.type !== line.type) {
             const typeConfig = LINE_TYPES[updates.type.toUpperCase()];
@@ -241,6 +260,13 @@ export class LineManager {
         }
 
         Object.assign(line, updates);
+
+        this._recordHistory({
+            action: 'update',
+            lineId: id,
+            oldLine,
+            newLine: JSON.parse(JSON.stringify(line))
+        });
         this._emitChange();
         return true;
     }
@@ -308,7 +334,14 @@ export class LineManager {
             return false;
         }
 
+        const oldLine = JSON.parse(JSON.stringify(line));
         line.points.splice(afterIndex + 1, 0, { x, y });
+        this._recordHistory({
+            action: 'update',
+            lineId,
+            oldLine,
+            newLine: JSON.parse(JSON.stringify(line))
+        });
         this._emitChange();
         return true;
     }
@@ -324,7 +357,15 @@ export class LineManager {
         if (!line || line.points.length <= 2) return false;
         if (vertexIndex < 0 || vertexIndex >= line.points.length) return false;
 
+        const oldLine = JSON.parse(JSON.stringify(line));
         line.points.splice(vertexIndex, 1);
+
+        this._recordHistory({
+            action: 'update',
+            lineId,
+            oldLine,
+            newLine: JSON.parse(JSON.stringify(line))
+        });
 
         if (this.selectedVertexIndex === vertexIndex) {
             this.selectedVertexIndex = null;
@@ -462,8 +503,22 @@ export class LineManager {
      * @private
      */
     _emitChange() {
+        if (this._suppressNotify) return;
         if (this.onLineChange) {
             this.onLineChange(this.lines);
+        }
+    }
+
+    /**
+     * Record a line change to the history system if an action is being recorded.
+     * @private
+     * @param {Object} changeData - { action, line?, lineId?, oldLine?, newLine? }
+     */
+    _recordHistory(changeData) {
+        // editor は初期化前に null の場合がある（正常）
+        const history = this.editor?.historySystem;
+        if (history && history.currentAction) {
+            history.recordChange({ type: 'line', ...changeData });
         }
     }
 }
