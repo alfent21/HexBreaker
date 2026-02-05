@@ -271,6 +271,9 @@ export class Editor {
         // Load lines
         this.lineManager.loadFromArray(stage.lines);
 
+        // Ensure default paddle/missline exist (fixes old data without lines)
+        this._ensureDefaultLines(stage.canvas.width, stage.canvas.height);
+
         // Render
         this.render();
 
@@ -445,33 +448,25 @@ export class Editor {
     }
 
     /**
-     * Create a new project (legacy - shows dialog)
+     * Create a new project via wizard
      */
     async newProject() {
         if (this.isDirty) {
-            const confirmed = await dialogService.confirm(
-                '未保存の変更があります。新規プロジェクトを作成しますか？',
-                { type: 'warning' }
+            const result = await dialogService.confirmSave(
+                '未保存の変更があります。',
+                {
+                    saveText: '保存して新規作成',
+                    discardText: '保存せずに新規作成',
+                    cancelText: 'キャンセル'
+                }
             );
-            if (!confirmed) {
-                return;
+            if (result === 'cancel') return;
+            if (result === 'save') {
+                await this.projectFileSystem.saveProject();
             }
         }
 
-        this.stageManager.clear();
-        this.projectName = 'Untitled Project';
-        this.isDirty = false;
-
-        // Create default stage
-        this.createStage({
-            name: 'Stage 1',
-            width: CANVAS_CONFIG.defaultWidth,
-            height: CANVAS_CONFIG.defaultHeight,
-            gridSize: 'medium'
-        });
-
-        this.emit('projectChanged', this.projectName);
-        this.emit('message', { type: 'info', text: '新規プロジェクトを作成しました' });
+        this.startupManager.showWizard({ canCancel: true });
     }
 
     /**
@@ -530,6 +525,9 @@ export class Editor {
             this._generatePresetLines(config);
         }
 
+        // Always ensure default paddle line and miss line exist
+        this._ensureDefaultLines(config.canvasWidth, config.canvasHeight);
+
         // Sync layers and lines to stage FIRST (before loading stage data)
         this._syncLayersToStage();
         this._syncLinesToStage();
@@ -546,6 +544,32 @@ export class Editor {
         this.emit('projectChanged', this.projectName);
         this.emit('canvasSizeChanged', { width: config.canvasWidth, height: config.canvasHeight });
         this.emit('message', { type: 'info', text: '新規プロジェクトを作成しました' });
+    }
+
+    /**
+     * Ensure default paddle line and miss line exist
+     * @private
+     * @param {number} canvasWidth
+     * @param {number} canvasHeight
+     */
+    _ensureDefaultLines(canvasWidth, canvasHeight) {
+        const lines = this.lineManager.getAllLines();
+        const hasPaddle = lines.some(l => l.type === 'paddle');
+        const hasMissline = lines.some(l => l.type === 'missline');
+
+        if (!hasPaddle) {
+            this.lineManager.createLine(
+                [{ x: 0, y: canvasHeight - 50 }, { x: canvasWidth, y: canvasHeight - 50 }],
+                { type: 'paddle', color: '#00FF00', thickness: 3, opacity: 1 }
+            );
+        }
+
+        if (!hasMissline) {
+            this.lineManager.createLine(
+                [{ x: 0, y: canvasHeight }, { x: canvasWidth, y: canvasHeight }],
+                { type: 'missline', color: '#FF0000', thickness: 3, opacity: 1 }
+            );
+        }
     }
 
     /**
@@ -590,13 +614,10 @@ export class Editor {
             }
 
             if (points.length > 0) {
-                this.lineManager.createLine({
-                    type: 'paddle',
+                this.lineManager.createLine(
                     points,
-                    color: '#00FF00',
-                    thickness: 3,
-                    opacity: 1
-                });
+                    { type: 'paddle', color: '#00FF00', thickness: 3, opacity: 1 }
+                );
             }
         }
 
@@ -641,13 +662,10 @@ export class Editor {
             }
 
             if (points.length > 0) {
-                this.lineManager.createLine({
-                    type: 'missline',
+                this.lineManager.createLine(
                     points,
-                    color: '#FF0000',
-                    thickness: 3,
-                    opacity: 1
-                });
+                    { type: 'missline', color: '#FF0000', thickness: 3, opacity: 1 }
+                );
             }
         }
     }

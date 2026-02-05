@@ -592,71 +592,75 @@
                 <div class="wizard-step-desc">背景画像または単色を選択してください</div>
 
                 <div class="wizard-content">
-                    <!-- Image Drop Zone -->
-                    <div class="drop-zone" id="wizard-drop-zone">
-                        <div class="drop-zone-content">
-                            <i class="fas fa-image drop-zone-icon"></i>
-                            <p>画像をドラッグ＆ドロップ</p>
-                            <p class="drop-zone-hint">または</p>
-                            <button class="btn btn--secondary" id="btn-wizard-select-image">
-                                ファイルを選択
-                            </button>
-                        </div>
-                    </div>
-                    <input type="file" id="file-input-wizard-image" accept="image/*" style="display:none">
-
-                    <!-- Image Preview -->
-                    <div class="image-preview-container hidden" id="wizard-image-preview">
-                        <img id="wizard-preview-img" class="preview-img" alt="Preview">
-                        <div class="preview-info">
-                            <span id="wizard-image-name">image.png</span>
-                            <span id="wizard-image-size">1280 x 720 px</span>
-                        </div>
-                        <button class="btn btn--icon btn--small" id="btn-wizard-clear-image">
-                            <i class="fas fa-times"></i>
+                    <!-- Tab Selector -->
+                    <div class="wizard-tabs" id="wizard-base-tabs">
+                        <button class="wizard-tab active" data-tab="image">
+                            <i class="fas fa-image"></i> 画像
+                        </button>
+                        <button class="wizard-tab" data-tab="solid">
+                            <i class="fas fa-fill-drip"></i> 単色
                         </button>
                     </div>
 
-                    <div class="form-divider">
-                        <span>または</span>
-                    </div>
+                    <!-- Image Tab Content -->
+                    <div class="wizard-tab-content" id="wizard-tab-image">
+                        <div class="drop-zone" id="wizard-drop-zone">
+                            <div class="drop-zone-content">
+                                <i class="fas fa-image drop-zone-icon"></i>
+                                <p>画像をドラッグ＆ドロップ</p>
+                                <p class="drop-zone-hint">または</p>
+                                <button class="btn btn--secondary" id="btn-wizard-select-image">
+                                    ファイルを選択
+                                </button>
+                            </div>
+                        </div>
+                        <input type="file" id="file-input-wizard-image" accept="image/*" style="display:none">
 
-                    <!-- Solid Color Mode -->
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="wizard-solid-color-mode">
-                        <span>単色背景を使用</span>
-                    </label>
-
-                    <!-- Color Presets -->
-                    <div class="wizard-panel hidden" id="wizard-color-panel">
-                        <label class="label">背景色</label>
-                        <div class="color-preset-grid">
-                            <button class="bg-color-preset" data-color="#FFFFFF" style="background:#FFFFFF" title="白"></button>
-                            <button class="bg-color-preset" data-color="#000000" style="background:#000000" title="黒"></button>
-                            <button class="bg-color-preset selected" data-color="#808080" style="background:#808080" title="グレー"></button>
-                            <button class="bg-color-preset" data-color="#333333" style="background:#333333" title="ダークグレー"></button>
+                        <!-- Image Preview -->
+                        <div class="image-preview-container hidden" id="wizard-image-preview">
+                            <img id="wizard-preview-img" class="preview-img" alt="Preview">
+                            <div class="preview-info">
+                                <span id="wizard-image-name">image.png</span>
+                                <span id="wizard-image-size">1280 x 720 px</span>
+                            </div>
+                            <button class="btn btn--icon btn--small" id="btn-wizard-clear-image">
+                                <i class="fas fa-times"></i>
+                            </button>
                         </div>
                     </div>
 
-                    <!-- Size Panel -->
-                    <div class="wizard-panel hidden" id="wizard-size-panel">
-                        <label class="label">サイズ</label>
-                        <div class="size-preset-buttons">
-                            <button class="size-preset-btn" data-width="1280" data-height="720">1280×720</button>
-                            <button class="size-preset-btn" data-width="1920" data-height="1080">1920×1080</button>
-                            <button class="size-preset-btn" data-width="800" data-height="600">800×600</button>
-                        </div>
-                        <div class="size-inputs">
-                            <input type="number" class="input" id="wizard-width" value="1280" min="100" max="4096">
-                            <span>×</span>
-                            <input type="number" class="input" id="wizard-height" value="720" min="100" max="4096">
-                            <span>px</span>
+                    <!-- Solid Color Tab Content -->
+                    <div class="wizard-tab-content hidden" id="wizard-tab-solid">
+                        <div class="wizard-solid-row">
+                            <div class="wizard-panel wizard-solid-panel" id="wizard-color-panel">
+                                <label class="label">背景色</label>
+                                <div class="color-preset-grid">
+                                    <button class="bg-color-preset" data-color="#FFFFFF" style="background:#FFFFFF" title="白"></button>
+                                    <button class="bg-color-preset" data-color="#000000" style="background:#000000" title="黒"></button>
+                                    <button class="bg-color-preset selected" data-color="#808080" style="background:#808080" title="グレー"></button>
+                                    <button class="bg-color-preset" data-color="#333333" style="background:#333333" title="ダークグレー"></button>
+                                </div>
+                            </div>
+                            <div class="wizard-panel wizard-solid-panel" id="wizard-size-panel">
+                                <label class="label">サイズ</label>
+                                <div class="size-preset-buttons">
+                                    <button class="size-preset-btn" data-width="1280" data-height="720">1280×720</button>
+                                    <button class="size-preset-btn" data-width="1920" data-height="1080">1920×1080</button>
+                                    <button class="size-preset-btn" data-width="800" data-height="600">800×600</button>
+                                </div>
+                                <div class="size-inputs">
+                                    <input type="number" class="input" id="wizard-width" value="1280" min="100" max="4096">
+                                    <span>×</span>
+                                    <input type="number" class="input" id="wizard-height" value="720" min="100" max="4096">
+                                    <span>px</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="wizard-footer">
-                    <button class="btn btn--secondary" id="btn-wizard-cancel-1">キャンセル</button>
+                    <button class="btn btn--secondary" id="btn-wizard-cancel-1" disabled>キャンセル</button>
                     <button class="btn btn--primary" id="btn-wizard-step1-next" disabled>次へ</button>
                 </div>
             </div>
@@ -731,7 +735,7 @@
                 </div>
 
                 <div class="wizard-footer">
-                    <button class="btn btn--secondary" id="btn-wizard-cancel-2">キャンセル</button>
+                    <button class="btn btn--secondary" id="btn-wizard-cancel-2" disabled>キャンセル</button>
                     <div class="wizard-footer-right">
                         <button class="btn btn--secondary" id="btn-wizard-step2-back">戻る</button>
                         <button class="btn btn--primary" id="btn-wizard-step2-next">次へ</button>
@@ -765,8 +769,8 @@
                         </div>
                     </div>
                     <p class="warning-text">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        グリッドサイズは作成後に変更できません
+                        <i class="fas fa-info-circle"></i>
+                        各ステージのグリッドサイズはステージ作成後に変更できません
                     </p>
 
                     <div class="form-divider"></div>
@@ -798,7 +802,7 @@
                 </div>
 
                 <div class="wizard-footer">
-                    <button class="btn btn--secondary" id="btn-wizard-cancel-3">キャンセル</button>
+                    <button class="btn btn--secondary" id="btn-wizard-cancel-3" disabled>キャンセル</button>
                     <div class="wizard-footer-right">
                         <button class="btn btn--secondary" id="btn-wizard-step3-back">戻る</button>
                         <button class="btn btn--primary" id="btn-wizard-create">

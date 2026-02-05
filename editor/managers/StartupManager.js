@@ -127,7 +127,7 @@ export class StartupManager {
 
         btnNew?.addEventListener('click', () => {
             this._hideStartupDialog();
-            this._showWizard();
+            this.showWizard();
         });
 
         btnOpen?.addEventListener('click', async () => {
@@ -188,10 +188,10 @@ export class StartupManager {
         // Step 3: Grid size and summary
         this._setupStep3();
 
-        // Cancel buttons
+        // Cancel buttons (in wizard footer, enabled only when project is already loaded)
         ['btn-wizard-cancel-1', 'btn-wizard-cancel-2', 'btn-wizard-cancel-3'].forEach(id => {
             document.getElementById(id)?.addEventListener('click', () => {
-                this._closeWizard();
+                document.getElementById('new-project-wizard')?.classList.add('hidden');
             });
         });
     }
@@ -203,10 +203,31 @@ export class StartupManager {
     _setupStep1() {
         const state = this.wizardState;
         const dropZone = document.getElementById('wizard-drop-zone');
-        const solidColorCheckbox = document.getElementById('wizard-solid-color-mode');
-        const colorPanel = document.getElementById('wizard-color-panel');
-        const sizePanel = document.getElementById('wizard-size-panel');
         const btnNext = document.getElementById('btn-wizard-step1-next');
+
+        // Tab switching (image / solid color)
+        document.querySelectorAll('#wizard-base-tabs .wizard-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+                // Update tab active state
+                document.querySelectorAll('#wizard-base-tabs .wizard-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                // Show/hide tab content
+                const imageContent = document.getElementById('wizard-tab-image');
+                const solidContent = document.getElementById('wizard-tab-solid');
+                if (tabName === 'image') {
+                    imageContent.classList.remove('hidden');
+                    solidContent.classList.add('hidden');
+                    state.solidColorMode = false;
+                } else {
+                    imageContent.classList.add('hidden');
+                    solidContent.classList.remove('hidden');
+                    state.solidColorMode = true;
+                }
+                this._updateStep1NextButton();
+            });
+        });
 
         // Drag and drop
         dropZone?.addEventListener('dragover', (e) => {
@@ -243,26 +264,6 @@ export class StartupManager {
         // Clear image button
         document.getElementById('btn-wizard-clear-image')?.addEventListener('click', () => {
             this._clearImageSelection();
-        });
-
-        // Solid color mode toggle
-        solidColorCheckbox?.addEventListener('change', () => {
-            state.solidColorMode = solidColorCheckbox.checked;
-
-            if (solidColorCheckbox.checked) {
-                colorPanel?.classList.remove('hidden');
-                sizePanel?.classList.remove('hidden');
-                dropZone.style.opacity = '0.5';
-                dropZone.style.pointerEvents = 'none';
-            } else {
-                colorPanel?.classList.add('hidden');
-                if (!state.imageFile) {
-                    sizePanel?.classList.add('hidden');
-                }
-                dropZone.style.opacity = '1';
-                dropZone.style.pointerEvents = 'auto';
-            }
-            this._updateStep1NextButton();
         });
 
         // Background color presets
@@ -408,28 +409,17 @@ export class StartupManager {
             state.imageWidth = width;
             state.imageHeight = height;
 
-            // Update UI
+            // Update UI - hide entire drop zone, show preview
             const dropZone = document.getElementById('wizard-drop-zone');
-            const dropContent = dropZone?.querySelector('.drop-zone-content');
             const previewContainer = document.getElementById('wizard-image-preview');
 
-            if (dropContent) dropContent.style.display = 'none';
+            dropZone?.classList.add('hidden');
             previewContainer?.classList.remove('hidden');
 
             document.getElementById('wizard-preview-img').src = dataURL;
             document.getElementById('wizard-image-name').textContent = file.name;
             document.getElementById('wizard-image-size').textContent =
                 `${width} x ${height} px`;
-
-            // Disable solid color mode
-            const checkbox = document.getElementById('wizard-solid-color-mode');
-            if (checkbox) {
-                checkbox.checked = false;
-                checkbox.disabled = true;
-            }
-            state.solidColorMode = false;
-            document.getElementById('wizard-color-panel')?.classList.add('hidden');
-            document.getElementById('wizard-size-panel')?.classList.add('hidden');
 
             this._updateStep1NextButton();
         } catch (error) {
@@ -450,14 +440,10 @@ export class StartupManager {
         state.imageHeight = 0;
 
         const dropZone = document.getElementById('wizard-drop-zone');
-        const dropContent = dropZone?.querySelector('.drop-zone-content');
         const previewContainer = document.getElementById('wizard-image-preview');
 
-        if (dropContent) dropContent.style.display = 'flex';
+        dropZone?.classList.remove('hidden');
         previewContainer?.classList.add('hidden');
-
-        const checkbox = document.getElementById('wizard-solid-color-mode');
-        if (checkbox) checkbox.disabled = false;
 
         this._updateStep1NextButton();
     }
@@ -544,25 +530,24 @@ export class StartupManager {
     }
 
     /**
-     * Show wizard dialog
-     * @private
+     * Show new project wizard
+     * @param {Object} [options]
+     * @param {boolean} [options.canCancel=false] - True if a project is already loaded (enables cancel buttons)
      */
-    _showWizard() {
+    showWizard({ canCancel = false } = {}) {
         // Reset existing state object instead of replacing it
         // (to preserve closure references in event handlers)
         Object.assign(this.wizardState, this._createInitialState());
         this._resetWizardUI();
+
+        // Enable/disable cancel buttons based on whether a project is loaded
+        ['btn-wizard-cancel-1', 'btn-wizard-cancel-2', 'btn-wizard-cancel-3'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) btn.disabled = !canCancel;
+        });
+
         document.getElementById('new-project-wizard')?.classList.remove('hidden');
         this._goToStep(1);
-    }
-
-    /**
-     * Close wizard dialog
-     * @private
-     */
-    _closeWizard() {
-        document.getElementById('new-project-wizard')?.classList.add('hidden');
-        this._showStartupDialog();
     }
 
     /**
@@ -570,23 +555,19 @@ export class StartupManager {
      * @private
      */
     _resetWizardUI() {
-        // Step 1
+        // Step 1 - Reset tabs to image mode
+        document.querySelectorAll('#wizard-base-tabs .wizard-tab').forEach(t => t.classList.remove('active'));
+        document.querySelector('#wizard-base-tabs .wizard-tab[data-tab="image"]')?.classList.add('active');
+        document.getElementById('wizard-tab-image')?.classList.remove('hidden');
+        document.getElementById('wizard-tab-solid')?.classList.add('hidden');
+
+        // Reset image drop zone
         const dropZone = document.getElementById('wizard-drop-zone');
-        const dropContent = dropZone?.querySelector('.drop-zone-content');
-        if (dropContent) dropContent.style.display = 'flex';
-        dropZone.style.opacity = '1';
-        dropZone.style.pointerEvents = 'auto';
+        dropZone?.classList.remove('hidden');
 
         document.getElementById('wizard-image-preview')?.classList.add('hidden');
 
-        const checkbox = document.getElementById('wizard-solid-color-mode');
-        if (checkbox) {
-            checkbox.checked = false;
-            checkbox.disabled = false;
-        }
-
-        document.getElementById('wizard-color-panel')?.classList.add('hidden');
-        document.getElementById('wizard-size-panel')?.classList.add('hidden');
+        // Reset size inputs
         document.getElementById('wizard-width').value = 1280;
         document.getElementById('wizard-height').value = 720;
 

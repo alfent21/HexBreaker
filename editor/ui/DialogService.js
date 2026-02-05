@@ -92,6 +92,61 @@ export class DialogService {
         });
     }
 
+    /**
+     * 保存確認ダイアログ（3択: 保存 / 破棄 / キャンセル）
+     * @param {string} message - 表示するメッセージ
+     * @param {Object} options - オプション
+     * @param {string} options.title - タイトル
+     * @param {string} options.saveText - 保存ボタンのテキスト
+     * @param {string} options.discardText - 破棄ボタンのテキスト
+     * @param {string} options.cancelText - キャンセルボタンのテキスト
+     * @returns {Promise<'save'|'discard'|'cancel'>}
+     */
+    async confirmSave(message, options = {}) {
+        const {
+            title = '未保存の変更',
+            saveText = '保存する',
+            discardText = '保存しない',
+            cancelText = 'キャンセル'
+        } = options;
+
+        return new Promise((resolve) => {
+            const dialog = document.getElementById('dialog-confirm');
+            const titleEl = document.getElementById('dialog-confirm-title');
+            const messageEl = document.getElementById('dialog-confirm-message');
+            const okBtn = document.getElementById('dialog-confirm-ok');
+            const extraBtn = document.getElementById('dialog-confirm-extra');
+            const cancelBtn = document.getElementById('dialog-confirm-cancel');
+
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+            okBtn.textContent = saveText;
+            okBtn.className = 'btn btn--primary';
+            extraBtn.textContent = discardText;
+            extraBtn.classList.remove('hidden');
+            cancelBtn.textContent = cancelText;
+
+            const cleanup = () => {
+                dialog.classList.add('hidden');
+                extraBtn.classList.add('hidden');
+                okBtn.removeEventListener('click', handleSave);
+                extraBtn.removeEventListener('click', handleDiscard);
+                cancelBtn.removeEventListener('click', handleCancel);
+            };
+
+            const handleSave = () => { cleanup(); resolve('save'); };
+            const handleDiscard = () => { cleanup(); resolve('discard'); };
+            const handleCancel = () => { cleanup(); resolve('cancel'); };
+
+            okBtn.addEventListener('click', handleSave);
+            extraBtn.addEventListener('click', handleDiscard);
+            cancelBtn.addEventListener('click', handleCancel);
+
+            dialog.classList.remove('hidden');
+            cancelBtn.focus();
+        });
+    }
+
     // =========================================================================
     // ローディング
     // =========================================================================
@@ -246,6 +301,7 @@ export class DialogService {
                 <p id="dialog-confirm-message"></p>
                 <div class="dialog-buttons">
                     <button id="dialog-confirm-cancel" class="btn">キャンセル</button>
+                    <button id="dialog-confirm-extra" class="btn btn--secondary hidden"></button>
                     <button id="dialog-confirm-ok" class="btn btn--primary">OK</button>
                 </div>
             </div>

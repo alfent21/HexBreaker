@@ -396,6 +396,11 @@ export class RenderSystem {
         for (const line of lines) {
             const isSelected = line.id === this.lineManager.selectedLineId;
 
+            // Draw visibility band for paddle/missline (editor-only enhancement)
+            if (line.type === 'paddle' || line.type === 'missline') {
+                this._drawLineBand(ctx, line);
+            }
+
             // Draw tap area for paddle lines with tap mode
             if (line.type === 'paddle' && line.paddleControl === 'tap' && line.tapRange) {
                 this._drawTapArea(ctx, line);
@@ -407,6 +412,45 @@ export class RenderSystem {
                 isSelected: isSelected
             });
         }
+    }
+
+    /**
+     * Draw semi-transparent band along a line for editor visibility
+     * @private
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {Object} line
+     */
+    _drawLineBand(ctx, line) {
+        if (!line.points || line.points.length < 2) return;
+
+        const bandWidth = line.type === 'paddle' ? 12 : 8;
+        const bandColor = line.type === 'paddle' ? '#2196F3' : '#F44336';
+
+        ctx.save();
+        ctx.globalAlpha = 0.2;
+        ctx.fillStyle = bandColor;
+
+        for (let i = 0; i < line.points.length - 1; i++) {
+            const p1 = line.points[i];
+            const p2 = line.points[i + 1];
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const len = Math.hypot(dx, dy);
+            if (len === 0) continue;
+
+            const nx = (-dy / len) * bandWidth;
+            const ny = (dx / len) * bandWidth;
+
+            ctx.beginPath();
+            ctx.moveTo(p1.x + nx, p1.y + ny);
+            ctx.lineTo(p2.x + nx, p2.y + ny);
+            ctx.lineTo(p2.x - nx, p2.y - ny);
+            ctx.lineTo(p1.x - nx, p1.y - ny);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        ctx.restore();
     }
 
     /**
