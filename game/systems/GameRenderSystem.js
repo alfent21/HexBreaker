@@ -113,8 +113,10 @@ export class GameRenderSystem {
         // Draw blocks
         this._renderBlocks(state.blocks, gridSize);
 
-        // Draw paddle
-        paddle.render(ctx);
+        // Draw paddle (hidden in tap mode)
+        if (paddle.visible) {
+            paddle.render(ctx);
+        }
 
         // Draw shield
         if (shield) {

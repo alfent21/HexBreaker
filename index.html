@@ -275,6 +275,7 @@
                     <button class="line-type-btn" data-type="paddle">パドル</button>
                     <button class="line-type-btn" data-type="missline">ミス</button>
                     <button class="line-type-btn" data-type="decoration">装飾</button>
+                    <button class="line-type-btn" data-type="path">パス</button>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -295,6 +296,47 @@
                         <input type="checkbox" id="grid-snap" checked>
                         グリッドスナップ
                     </label>
+                </div>
+
+                <!-- パドルライン設定（パドルライン選択時のみ表示） -->
+                <div id="paddle-settings" style="display: none;">
+                    <div class="form-group">
+                        <label class="label">パドル操作</label>
+                        <select id="paddle-control" class="select">
+                            <option value="mouse-x">マウス(横)</option>
+                            <option value="mouse-y">マウス(縦)</option>
+                            <option value="mouse-x-inv">マウス(横・反転)</option>
+                            <option value="mouse-y-inv">マウス(縦・反転)</option>
+                            <option value="key-x">キーボード(横)</option>
+                            <option value="key-y">キーボード(縦)</option>
+                            <option value="key-x-inv">キーボード(横・反転)</option>
+                            <option value="key-y-inv">キーボード(縦・反転)</option>
+                            <option value="auto">自動</option>
+                            <option value="tap">タップ</option>
+                        </select>
+                    </div>
+                    <div id="tap-settings" style="display: none;">
+                        <div class="form-group">
+                            <label class="label">タップエリア幅(px)</label>
+                            <input type="number" class="input input--small" id="tap-range" value="40" min="10" max="200">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- パス紐づけ設定（パドル/ミスライン選択時のみ表示） -->
+                <div id="path-settings" style="display: none;">
+                    <div class="form-group">
+                        <label class="label">パスライン</label>
+                        <select id="path-line-select" class="select">
+                            <option value="">なし</option>
+                        </select>
+                    </div>
+                    <div id="path-speed-settings" style="display: none;">
+                        <div class="form-group">
+                            <label class="label">移動速度(px/s)</label>
+                            <input type="number" class="input input--small" id="path-speed" value="100" min="10" max="500">
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

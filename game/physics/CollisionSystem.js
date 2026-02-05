@@ -135,6 +135,28 @@ export class CollisionSystem {
         return hexToPixel(row, col, this.gridSize);
     }
 
+    /**
+     * Check if ball has crossed a miss line
+     * @param {import('../entities/Ball.js').Ball} ball
+     * @param {Object[]} missLines - Array of missline objects
+     * @param {number} [threshold=20] - Detection threshold in pixels
+     * @returns {boolean}
+     */
+    checkMissLine(ball, missLines, threshold = 20) {
+        for (const line of missLines) {
+            if (!line.points || line.points.length < 2) continue;
+
+            for (let i = 0; i < line.points.length - 1; i++) {
+                const dist = this._pointToSegmentDistance(
+                    ball.x, ball.y,
+                    line.points[i], line.points[i + 1]
+                );
+                if (dist <= threshold) return true;
+            }
+        }
+        return false;
+    }
+
     // =========================================
     // Line Collision & Block Guide
     // =========================================

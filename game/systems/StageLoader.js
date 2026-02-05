@@ -101,9 +101,25 @@ export class StageLoader {
             bossSystem.loadBoss(stageData.boss, stageData.gridSize || 'medium');
         }
 
+        // Check for tap mode paddle
+        const paddleLines = (stageData.lines || []).filter(l => l.type === 'paddle');
+        const tapPaddleLine = paddleLines.find(l => l.paddleControl === 'tap');
+
         // Create paddle and shield
         const paddle = new Paddle(canvasWidth / 2, canvasHeight - 50);
         paddle.setBounds(0, canvasWidth);
+
+        if (tapPaddleLine) {
+            paddle.visible = false;
+            // Position paddle at paddle line midpoint (for ball spawn)
+            const points = tapPaddleLine.points;
+            if (points && points.length >= 2) {
+                const mid = Math.floor((points.length - 1) / 2);
+                paddle.x = (points[mid].x + points[mid + 1].x) / 2;
+                paddle.y = (points[mid].y + points[mid + 1].y) / 2;
+            }
+        }
+
         const shield = new Shield(canvasHeight - 15);
 
         return {

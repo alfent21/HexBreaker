@@ -122,13 +122,15 @@ export class BallSystem {
             // Line collisions
             this._checkLineCollision(ball, i, stageData, blocks);
 
-            // Paddle collision
-            const paddleHit = paddle.checkCollision(ball);
-            if (paddleHit.hit) {
-                if (weaponSystem.handleMagnetCatch(ball, paddle)) {
-                    // Ball was caught by magnet
-                } else {
-                    ball.reflectFromPaddle(paddleHit.offsetRatio);
+            // Paddle collision (skip in tap mode)
+            if (paddle.visible) {
+                const paddleHit = paddle.checkCollision(ball);
+                if (paddleHit.hit) {
+                    if (weaponSystem.handleMagnetCatch(ball, paddle)) {
+                        // Ball was caught by magnet
+                    } else {
+                        ball.reflectFromPaddle(paddleHit.offsetRatio);
+                    }
                 }
             }
 
@@ -140,14 +142,31 @@ export class BallSystem {
             // Block collisions
             this._checkBlockCollisions(ball, blocks, state, bossSystem, gemSystem, callbacks);
 
-            // Miss check
-            if (this.collision.checkMiss(ball, canvasHeight)) {
+            // Miss check (miss lines + canvas bottom fallback)
+            const missLines = this._getMissLines(stageData);
+            const hitMissLine = missLines.length > 0
+                ? this.collision.checkMissLine(ball, missLines)
+                : false;
+
+            if (hitMissLine || this.collision.checkMiss(ball, canvasHeight)) {
                 this.balls.splice(i, 1);
                 if (this.balls.length === 0) {
                     callbacks.onMiss();
                 }
             }
         }
+    }
+
+    /**
+     * Get miss lines from stage data
+     * @private
+     * @param {Object} stageData
+     * @returns {Object[]}
+     */
+    _getMissLines(stageData) {
+        const lines = stageData?.lines;
+        if (!lines) return [];
+        return lines.filter(l => l.type === 'missline');
     }
 
     /**

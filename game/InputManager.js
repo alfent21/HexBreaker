@@ -15,6 +15,7 @@ export class InputManager {
         // Callback functions
         this.onLaunch = null;
         this.onWeapon = null;
+        this.onTap = null;
 
         this._bindEvents();
     }
@@ -33,6 +34,7 @@ export class InputManager {
         this.canvas.addEventListener('mousedown', (e) => {
             if (e.button === 0) {
                 this.mouseDown = true;
+                if (this.onTap) this.onTap(this.mouseX, this.mouseY);
                 if (this.onLaunch) this.onLaunch();
             } else if (e.button === 2) {
                 this.rightMouseDown = true;

@@ -177,6 +177,18 @@ export class LineManager {
             };
         }
 
+        // Add tap/path properties for paddle lines
+        if (line.type === 'paddle') {
+            line.tapRange = options.tapRange ?? null;
+            line.pathLineId = options.pathLineId ?? null;
+            line.pathSpeed = options.pathSpeed ?? null;
+        }
+
+        // Add path binding for misslines
+        if (line.type === 'missline') {
+            line.pathLineId = options.pathLineId ?? null;
+        }
+
         this.lines.push(line);
         this._recordHistory({
             action: 'add',

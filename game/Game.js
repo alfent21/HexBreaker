@@ -20,6 +20,8 @@ import { BossSystem } from './systems/BossSystem.js';
 import { GameRenderSystem } from './systems/GameRenderSystem.js';
 import { BallSystem } from './systems/BallSystem.js';
 import { StageLoader } from './systems/StageLoader.js';
+import { TapSystem } from './systems/TapSystem.js';
+import { PathMoveSystem } from './systems/PathMoveSystem.js';
 
 export class Game {
     constructor(canvas) {
@@ -45,6 +47,8 @@ export class Game {
         this.renderSystem = new GameRenderSystem(this.ctx, this.canvasWidth, this.canvasHeight);
         this.ballSystem = new BallSystem(this.collision);
         this.stageLoader = new StageLoader();
+        this.tapSystem = new TapSystem();
+        this.pathMoveSystem = new PathMoveSystem();
 
         // Connect render system message callback
         this.renderSystem.showMessage = (text, type, duration) => {
@@ -74,6 +78,7 @@ export class Game {
         // Setup input callbacks
         this.input.onLaunch = () => this._launchBall();
         this.input.onWeapon = (weaponId) => this._purchaseWeapon(weaponId);
+        this.input.onTap = (x, y) => this._handleTap(x, y);
 
         // Window resize handler
         window.addEventListener('resize', () => this._handleResize());
@@ -111,6 +116,15 @@ export class Game {
         this.gridSize = result.gridSize;
         this.paddle = result.paddle;
         this.shield = result.shield;
+
+        // Deep copy lines for runtime mutation by PathMoveSystem
+        if (this.state.stageData.lines) {
+            this.state.stageData.lines = JSON.parse(JSON.stringify(this.state.stageData.lines));
+        }
+
+        // Initialize tap system and path movement
+        this.tapSystem.loadFromStage(this.state.stageData);
+        this.pathMoveSystem.loadFromStage(this.state.stageData);
 
         // Clear and create initial ball
         this.ballSystem.clear();
@@ -167,6 +181,17 @@ export class Game {
      */
     _update(dt) {
         const speedMultiplier = this.input.getSpeedMultiplier();
+
+        // Update path movement (before paddle, so lines are at new positions)
+        const pathDelta = this.pathMoveSystem.update(dt);
+
+        // Apply conveyor-belt effect to paddle
+        if (this.paddle.visible && (pathDelta.x !== 0 || pathDelta.y !== 0)) {
+            this.paddle.x += pathDelta.x;
+            this.paddle.y += pathDelta.y;
+            this.paddle.minX += pathDelta.x;
+            this.paddle.maxX += pathDelta.x;
+        }
 
         // Update weapon system (handles laser/magnet/ghost input)
         this.weaponSystem.update(dt, this.input, this.ballSystem.balls, this.paddle);
@@ -362,6 +387,9 @@ export class Game {
             gridSize: this.gridSize
         });
 
+        // Render tap area
+        this.tapSystem.render(this.ctx);
+
         // Render gems
         this.gemSystem.render(this.ctx);
 
@@ -370,6 +398,16 @@ export class Game {
 
         // Render boss
         this.bossSystem.render(this.ctx);
+    }
+
+    /**
+     * Handle tap mode click
+     * @private
+     */
+    _handleTap(x, y) {
+        if (!this.tapSystem.active) return;
+        if (this.state.state !== STATES.PLAYING) return;
+        this.tapSystem.handleTap(x, y, this.ballSystem.balls);
     }
 
     /**

@@ -58,6 +58,14 @@ export const RENDER_CONFIG = {
         decoration: {
             dashPattern: [],
             label: null
+        },
+        path: {
+            dashPattern: [8, 4, 2, 4],
+            label: {
+                text: 'PATH',
+                bgColor: '#FF00FF',
+                textColor: '#FFFFFF'
+            }
         }
     }
 };

@@ -396,12 +396,54 @@ export class RenderSystem {
         for (const line of lines) {
             const isSelected = line.id === this.lineManager.selectedLineId;
 
+            // Draw tap area for paddle lines with tap mode
+            if (line.type === 'paddle' && line.paddleControl === 'tap' && line.tapRange) {
+                this._drawTapArea(ctx, line);
+            }
+
             // Use shared renderer for line drawing
             drawLine(ctx, line, {
                 showLabel: true,
                 isSelected: isSelected
             });
         }
+    }
+
+    /**
+     * Draw tap area visualization for paddle lines in tap mode
+     * @private
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {Object} line - Paddle line with tapRange
+     */
+    _drawTapArea(ctx, line) {
+        const tapRange = line.tapRange;
+        if (!line.points || line.points.length < 2) return;
+
+        ctx.save();
+        ctx.globalAlpha = 0.15;
+        ctx.fillStyle = '#00FF88';
+
+        for (let i = 0; i < line.points.length - 1; i++) {
+            const p1 = line.points[i];
+            const p2 = line.points[i + 1];
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const len = Math.hypot(dx, dy);
+            if (len === 0) continue;
+
+            const nx = (-dy / len) * tapRange;
+            const ny = (dx / len) * tapRange;
+
+            ctx.beginPath();
+            ctx.moveTo(p1.x + nx, p1.y + ny);
+            ctx.lineTo(p2.x + nx, p2.y + ny);
+            ctx.lineTo(p2.x - nx, p2.y - ny);
+            ctx.lineTo(p1.x - nx, p1.y - ny);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        ctx.restore();
     }
 
     /**

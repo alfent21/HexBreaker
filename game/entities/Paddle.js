@@ -20,6 +20,9 @@ export class Paddle {
         // Movement bounds
         this.minX = 0;
         this.maxX = 1280;
+
+        // Visibility (false in tap mode)
+        this.visible = true;
     }
 
     /**
@@ -156,6 +159,8 @@ export class Paddle {
      * @param {CanvasRenderingContext2D} ctx
      */
     render(ctx) {
+        if (!this.visible) return;
+
         // Glow
         ctx.shadowBlur = 15;
         ctx.shadowColor = this.color;

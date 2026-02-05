@@ -93,6 +93,14 @@ export const LINE_TYPES = {
         dashPattern: [],
         hasPhysics: false,
         label: null
+    },
+    PATH: {
+        id: 'path',
+        name: 'パス',
+        color: '#FF00FF',
+        dashPattern: [8, 4, 2, 4],
+        hasPhysics: false,
+        label: { text: 'PATH', bgColor: '#FF00FF', textColor: '#FFFFFF' }
     }
 };
 
@@ -115,7 +123,8 @@ export const PADDLE_CONTROLS = [
     { id: 'key-y', name: 'キーボード(縦)' },
     { id: 'key-x-inv', name: 'キーボード(横・反転)' },
     { id: 'key-y-inv', name: 'キーボード(縦・反転)' },
-    { id: 'auto', name: '自動' }
+    { id: 'auto', name: '自動' },
+    { id: 'tap', name: 'タップ' }
 ];
 
 // Selection highlight colors
@@ -171,6 +180,12 @@ export const STAGE_DEFAULTS = {
         magnet: 4,
         ghost: 4
     }
+};
+
+// Tap mode defaults
+export const TAP_DEFAULTS = {
+    tapRange: 40,       // タップエリア片側幅(px)
+    pathSpeed: 100      // パス移動速度(px/s)
 };
 
 // Project file version

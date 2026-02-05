@@ -5,7 +5,7 @@
  * Extracted from UIController.js for single responsibility.
  */
 
-import { TOOLS, BRUSH_SIZES, DURABILITY_COLORS } from '../../core/Config.js';
+import { TOOLS, BRUSH_SIZES, DURABILITY_COLORS, TAP_DEFAULTS } from '../../core/Config.js';
 
 export class ToolPaletteController {
     /**
@@ -47,7 +47,15 @@ export class ToolPaletteController {
             lineColorPicker: elements.lineColorPicker,
             lineThickness: elements.lineThickness,
             lineOpacity: elements.lineOpacity,
-            gridSnap: elements.gridSnap
+            gridSnap: elements.gridSnap,
+            paddleControl: elements.paddleControl,
+            paddleSettings: elements.paddleSettings,
+            tapSettings: elements.tapSettings,
+            tapRange: elements.tapRange,
+            pathSettings: elements.pathSettings,
+            pathLineSelect: elements.pathLineSelect,
+            pathSpeedSettings: elements.pathSpeedSettings,
+            pathSpeed: elements.pathSpeed
         };
     }
 
@@ -132,6 +140,9 @@ export class ToolPaletteController {
                     if (selectedLine) {
                         this.editor.lineManager.updateLine(selectedLine.id, { type });
                     }
+
+                    // Show/hide conditional settings panels
+                    this._updateConditionalPanels(type);
                 });
             });
         }
@@ -178,6 +189,58 @@ export class ToolPaletteController {
         if (this.elements.gridSnap) {
             this.elements.gridSnap.addEventListener('change', (e) => {
                 this.editor.gridSnapEnabled = e.target.checked;
+            });
+        }
+
+        // Paddle control select
+        if (this.elements.paddleControl) {
+            this.elements.paddleControl.addEventListener('change', (e) => {
+                const paddleControl = e.target.value;
+                this.editor.lineManager.currentPaddleControl = paddleControl;
+
+                const selectedLine = this.editor.lineManager.getSelectedLine();
+                if (selectedLine && selectedLine.type === 'paddle') {
+                    this.editor.lineManager.updateLine(selectedLine.id, { paddleControl });
+                }
+
+                // Show/hide tap settings
+                this._updateTapSettingsVisibility(paddleControl);
+            });
+        }
+
+        // Tap range
+        if (this.elements.tapRange) {
+            this.elements.tapRange.addEventListener('input', (e) => {
+                const tapRange = parseInt(e.target.value);
+                const selectedLine = this.editor.lineManager.getSelectedLine();
+                if (selectedLine && selectedLine.type === 'paddle') {
+                    this.editor.lineManager.updateLine(selectedLine.id, { tapRange });
+                }
+            });
+        }
+
+        // Path line select
+        if (this.elements.pathLineSelect) {
+            this.elements.pathLineSelect.addEventListener('change', (e) => {
+                const pathLineId = e.target.value || null;
+                const selectedLine = this.editor.lineManager.getSelectedLine();
+                if (selectedLine) {
+                    this.editor.lineManager.updateLine(selectedLine.id, { pathLineId });
+                }
+
+                // Show/hide path speed settings
+                this._updatePathSpeedVisibility(pathLineId);
+            });
+        }
+
+        // Path speed
+        if (this.elements.pathSpeed) {
+            this.elements.pathSpeed.addEventListener('input', (e) => {
+                const pathSpeed = parseInt(e.target.value);
+                const selectedLine = this.editor.lineManager.getSelectedLine();
+                if (selectedLine) {
+                    this.editor.lineManager.updateLine(selectedLine.id, { pathSpeed });
+                }
             });
         }
     }
@@ -253,7 +316,8 @@ export class ToolPaletteController {
      */
     _updateLinePropertiesUI(line) {
         if (!line) {
-            // Clear/disable line properties
+            // Hide all conditional panels
+            this._updateConditionalPanels(null);
             return;
         }
 
@@ -277,6 +341,105 @@ export class ToolPaletteController {
         // Update opacity
         if (this.elements.lineOpacity) {
             this.elements.lineOpacity.value = line.opacity;
+        }
+
+        // Update conditional panels based on line type
+        this._updateConditionalPanels(line.type);
+
+        // Update paddle-specific properties
+        if (line.type === 'paddle') {
+            if (this.elements.paddleControl) {
+                this.elements.paddleControl.value = line.paddleControl || 'mouse-x';
+            }
+            this._updateTapSettingsVisibility(line.paddleControl || 'mouse-x');
+            if (this.elements.tapRange) {
+                this.elements.tapRange.value = line.tapRange || TAP_DEFAULTS.tapRange;
+            }
+        }
+
+        // Update path binding properties (paddle and missline)
+        if (line.type === 'paddle' || line.type === 'missline') {
+            this._updatePathLineOptions();
+            if (this.elements.pathLineSelect) {
+                this.elements.pathLineSelect.value = line.pathLineId || '';
+            }
+            this._updatePathSpeedVisibility(line.pathLineId);
+            if (this.elements.pathSpeed) {
+                this.elements.pathSpeed.value = line.pathSpeed || TAP_DEFAULTS.pathSpeed;
+            }
+        }
+    }
+
+    // =========================================================================
+    // Conditional Panel Visibility
+    // =========================================================================
+
+    /**
+     * Show/hide conditional panels based on line type
+     * @private
+     * @param {string|null} lineType
+     */
+    _updateConditionalPanels(lineType) {
+        // Paddle settings: only for paddle lines
+        if (this.elements.paddleSettings) {
+            this.elements.paddleSettings.style.display = (lineType === 'paddle') ? '' : 'none';
+        }
+
+        // Path settings: for paddle and missline
+        if (this.elements.pathSettings) {
+            const showPath = (lineType === 'paddle' || lineType === 'missline');
+            this.elements.pathSettings.style.display = showPath ? '' : 'none';
+            if (showPath) {
+                this._updatePathLineOptions();
+            }
+        }
+    }
+
+    /**
+     * Show/hide tap settings based on paddle control mode
+     * @private
+     * @param {string} paddleControl
+     */
+    _updateTapSettingsVisibility(paddleControl) {
+        if (this.elements.tapSettings) {
+            this.elements.tapSettings.style.display = (paddleControl === 'tap') ? '' : 'none';
+        }
+    }
+
+    /**
+     * Update path line dropdown options
+     * @private
+     */
+    _updatePathLineOptions() {
+        const select = this.elements.pathLineSelect;
+        if (!select) return;
+
+        const pathLines = this.editor.lineManager.getLinesByType('path');
+        const currentValue = select.value;
+
+        select.innerHTML = '<option value="">なし</option>';
+        for (const line of pathLines) {
+            const option = document.createElement('option');
+            option.value = line.id;
+            const shortId = line.id.length > 8 ? line.id.substring(0, 8) + '...' : line.id;
+            option.textContent = `パス (${shortId})`;
+            select.appendChild(option);
+        }
+
+        // Restore selection if still valid
+        if (currentValue && pathLines.some(l => l.id === currentValue)) {
+            select.value = currentValue;
+        }
+    }
+
+    /**
+     * Show/hide path speed settings based on path line selection
+     * @private
+     * @param {string|null} pathLineId
+     */
+    _updatePathSpeedVisibility(pathLineId) {
+        if (this.elements.pathSpeedSettings) {
+            this.elements.pathSpeedSettings.style.display = pathLineId ? '' : 'none';
         }
     }
 }

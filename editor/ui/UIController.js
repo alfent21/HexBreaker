@@ -147,7 +147,15 @@ export class UIController {
             lineColorPicker: this.elements.lineColorPicker,
             lineThickness: this.elements.lineThickness,
             lineOpacity: this.elements.lineOpacity,
-            gridSnap: this.elements.gridSnap
+            gridSnap: this.elements.gridSnap,
+            paddleControl: this.elements.paddleControl,
+            paddleSettings: this.elements.paddleSettings,
+            tapSettings: this.elements.tapSettings,
+            tapRange: this.elements.tapRange,
+            pathSettings: this.elements.pathSettings,
+            pathLineSelect: this.elements.pathLineSelect,
+            pathSpeedSettings: this.elements.pathSpeedSettings,
+            pathSpeed: this.elements.pathSpeed
         });
 
         this._bindToolbarEvents();
@@ -204,6 +212,13 @@ export class UIController {
             lineOpacity: document.getElementById('line-opacity'),
             paddleControl: document.getElementById('paddle-control'),
             gridSnap: document.getElementById('grid-snap'),
+            paddleSettings: document.getElementById('paddle-settings'),
+            tapSettings: document.getElementById('tap-settings'),
+            tapRange: document.getElementById('tap-range'),
+            pathSettings: document.getElementById('path-settings'),
+            pathLineSelect: document.getElementById('path-line-select'),
+            pathSpeedSettings: document.getElementById('path-speed-settings'),
+            pathSpeed: document.getElementById('path-speed'),
 
             // Layer panel
             layerList: document.getElementById('layer-list'),
