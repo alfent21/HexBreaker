@@ -244,7 +244,8 @@
                     </div>
                     <div class="form-group">
                         <label class="label">ハイライト不透明度 <span id="emboss-highlight-opacity-value">50</span>%</label>
-                        <input type="range" class="slider" id="emboss-highlight-opacity" value="50" min="0" max="100" step="5">
+                        <input type="range" class="slider" id="emboss-highlight-opacity" value="50" min="0" max="100"
+                            step="5">
                     </div>
                     <div class="form-group">
                         <label class="label">エンボス シャドウ色</label>
@@ -252,7 +253,8 @@
                     </div>
                     <div class="form-group">
                         <label class="label">シャドウ不透明度 <span id="emboss-shadow-opacity-value">40</span>%</label>
-                        <input type="range" class="slider" id="emboss-shadow-opacity" value="40" min="0" max="100" step="5">
+                        <input type="range" class="slider" id="emboss-shadow-opacity" value="40" min="0" max="100"
+                            step="5">
                     </div>
                     <div class="form-group">
                         <label class="label">エンボス太さ <span id="emboss-width-value">8</span>%</label>
@@ -301,6 +303,23 @@
                 <!-- パドルライン設定（パドルライン選択時のみ表示） -->
                 <div id="paddle-settings" style="display: none;">
                     <div class="form-group">
+                        <label class="label">上方向（プレイフィールド側）</label>
+                        <button id="btn-flip-normal" class="btn btn--small" title="上方向を反転">反転</button>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="pair-missline-checkbox" checked>
+                            ミスラインを自動生成
+                        </label>
+                    </div>
+                    <div id="missline-offset-group">
+                        <div class="form-group">
+                            <label class="label">オフセット距離: <span id="missline-offset-value">50</span>px</label>
+                            <input type="range" class="slider" id="missline-offset" min="20" max="200" value="50"
+                                step="5">
+                        </div>
+                    </div>
+                    <div class="form-group">
                         <label class="label">パドル操作</label>
                         <select id="paddle-control" class="select">
                             <option value="mouse-x">マウス(横)</option>
@@ -318,7 +337,8 @@
                     <div id="tap-settings" style="display: none;">
                         <div class="form-group">
                             <label class="label">タップエリア幅(px)</label>
-                            <input type="number" class="input input--small" id="tap-range" value="40" min="10" max="200">
+                            <input type="number" class="input input--small" id="tap-range" value="40" min="10"
+                                max="200">
                         </div>
                     </div>
                 </div>
@@ -334,7 +354,8 @@
                     <div id="path-speed-settings" style="display: none;">
                         <div class="form-group">
                             <label class="label">移動速度(px/s)</label>
-                            <input type="number" class="input input--small" id="path-speed" value="100" min="10" max="500">
+                            <input type="number" class="input input--small" id="path-speed" value="100" min="10"
+                                max="500">
                         </div>
                     </div>
                 </div>
@@ -486,8 +507,8 @@
 
                 <div class="form-group">
                     <label class="label">カバレッジしきい値: <span id="blockify-coverage-value">30%</span></label>
-                    <input type="range" class="slider" id="blockify-coverage-threshold"
-                        min="0.1" max="1" step="0.05" value="0.3" style="width: 100%;">
+                    <input type="range" class="slider" id="blockify-coverage-threshold" min="0.1" max="1" step="0.05"
+                        value="0.3" style="width: 100%;">
                     <small style="color: var(--color-text-muted);">
                         ヘックス内のこの割合以上が不透明ならブロック配置
                     </small>
@@ -533,7 +554,8 @@
                     </label>
                 </div>
 
-                <div class="form-group" style="background: var(--color-bg-secondary); padding: 12px; border-radius: 4px;">
+                <div class="form-group"
+                    style="background: var(--color-bg-secondary); padding: 12px; border-radius: 4px;">
                     <label class="label">プレビュー</label>
                     <p style="margin: 8px 0 0 0;">
                         生成ブロック数: <strong id="blockify-preview-count">0</strong>
@@ -635,23 +657,31 @@
                             <div class="wizard-panel wizard-solid-panel" id="wizard-color-panel">
                                 <label class="label">背景色</label>
                                 <div class="color-preset-grid">
-                                    <button class="bg-color-preset" data-color="#FFFFFF" style="background:#FFFFFF" title="白"></button>
-                                    <button class="bg-color-preset" data-color="#000000" style="background:#000000" title="黒"></button>
-                                    <button class="bg-color-preset selected" data-color="#808080" style="background:#808080" title="グレー"></button>
-                                    <button class="bg-color-preset" data-color="#333333" style="background:#333333" title="ダークグレー"></button>
+                                    <button class="bg-color-preset" data-color="#FFFFFF" style="background:#FFFFFF"
+                                        title="白"></button>
+                                    <button class="bg-color-preset" data-color="#000000" style="background:#000000"
+                                        title="黒"></button>
+                                    <button class="bg-color-preset selected" data-color="#808080"
+                                        style="background:#808080" title="グレー"></button>
+                                    <button class="bg-color-preset" data-color="#333333" style="background:#333333"
+                                        title="ダークグレー"></button>
                                 </div>
                             </div>
                             <div class="wizard-panel wizard-solid-panel" id="wizard-size-panel">
                                 <label class="label">サイズ</label>
                                 <div class="size-preset-buttons">
-                                    <button class="size-preset-btn" data-width="1280" data-height="720">1280×720</button>
-                                    <button class="size-preset-btn" data-width="1920" data-height="1080">1920×1080</button>
+                                    <button class="size-preset-btn" data-width="1280"
+                                        data-height="720">1280×720</button>
+                                    <button class="size-preset-btn" data-width="1920"
+                                        data-height="1080">1920×1080</button>
                                     <button class="size-preset-btn" data-width="800" data-height="600">800×600</button>
                                 </div>
                                 <div class="size-inputs">
-                                    <input type="number" class="input" id="wizard-width" value="1280" min="100" max="4096">
+                                    <input type="number" class="input" id="wizard-width" value="1280" min="100"
+                                        max="4096">
                                     <span>×</span>
-                                    <input type="number" class="input" id="wizard-height" value="720" min="100" max="4096">
+                                    <input type="number" class="input" id="wizard-height" value="720" min="100"
+                                        max="4096">
                                     <span>px</span>
                                 </div>
                             </div>
@@ -700,7 +730,8 @@
                             </div>
                             <div class="form-group">
                                 <label class="label">サイズ (px)</label>
-                                <input type="number" class="input" id="wizard-extra-size" value="100" min="50" max="500">
+                                <input type="number" class="input" id="wizard-extra-size" value="100" min="50"
+                                    max="500">
                             </div>
                         </div>
                     </div>

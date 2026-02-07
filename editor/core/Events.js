@@ -230,6 +230,16 @@ export class Events {
         const lineManager = this.editor.lineManager;
 
         if (!lineManager.isDrawing) {
+            // Check if clicking on existing line endpoint (resume drawing)
+            const endpointHit = lineManager.findEndpointAt(coords.x, coords.y);
+            if (endpointHit) {
+                this.editor.beginAction();
+                this._actionActive = true;
+                lineManager.resumeDrawingFrom(endpointHit.line.id, endpointHit.isStart);
+                this.editor.render();
+                return;
+            }
+
             // Check if clicking on existing line vertex (start drag)
             const vertexHit = lineManager.findVertexAt(coords.x, coords.y);
             if (vertexHit) {

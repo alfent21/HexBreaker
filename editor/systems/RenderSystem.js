@@ -423,8 +423,11 @@ export class RenderSystem {
     _drawLineBand(ctx, line) {
         if (!line.points || line.points.length < 2) return;
 
-        const bandWidth = line.type === 'paddle' ? 12 : 8;
+        const bandWidth = line.type === 'paddle' ? 20 : 8;
         const bandColor = line.type === 'paddle' ? '#2196F3' : '#F44336';
+
+        // パドルラインは normalSide 側のみ、ミスラインは両側（従来通り）
+        const normalSide = (line.type === 'paddle') ? (line.normalSide ?? 'left') : null;
 
         ctx.save();
         ctx.globalAlpha = 0.2;
@@ -438,16 +441,40 @@ export class RenderSystem {
             const len = Math.hypot(dx, dy);
             if (len === 0) continue;
 
-            const nx = (-dy / len) * bandWidth;
-            const ny = (dx / len) * bandWidth;
+            // 法線ベクトル（進行方向の左側）
+            const lnx = -dy / len;
+            const lny = dx / len;
 
-            ctx.beginPath();
-            ctx.moveTo(p1.x + nx, p1.y + ny);
-            ctx.lineTo(p2.x + nx, p2.y + ny);
-            ctx.lineTo(p2.x - nx, p2.y - ny);
-            ctx.lineTo(p1.x - nx, p1.y - ny);
-            ctx.closePath();
-            ctx.fill();
+            if (normalSide === 'left') {
+                // normalSide=left: 進行方向の左側のみ
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.lineTo(p2.x + lnx * bandWidth, p2.y + lny * bandWidth);
+                ctx.lineTo(p1.x + lnx * bandWidth, p1.y + lny * bandWidth);
+                ctx.closePath();
+                ctx.fill();
+            } else if (normalSide === 'right') {
+                // normalSide=right: 進行方向の右側のみ
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.lineTo(p2.x - lnx * bandWidth, p2.y - lny * bandWidth);
+                ctx.lineTo(p1.x - lnx * bandWidth, p1.y - lny * bandWidth);
+                ctx.closePath();
+                ctx.fill();
+            } else {
+                // ミスライン等: 両側（従来通り）
+                const nx = lnx * bandWidth;
+                const ny = lny * bandWidth;
+                ctx.beginPath();
+                ctx.moveTo(p1.x + nx, p1.y + ny);
+                ctx.lineTo(p2.x + nx, p2.y + ny);
+                ctx.lineTo(p2.x - nx, p2.y - ny);
+                ctx.lineTo(p1.x - nx, p1.y - ny);
+                ctx.closePath();
+                ctx.fill();
+            }
         }
 
         ctx.restore();

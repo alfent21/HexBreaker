@@ -48,6 +48,11 @@ export class ToolPaletteController {
             lineThickness: elements.lineThickness,
             lineOpacity: elements.lineOpacity,
             gridSnap: elements.gridSnap,
+            flipNormalBtn: elements.flipNormalBtn,
+            pairMisslineCheckbox: elements.pairMisslineCheckbox,
+            misslineOffsetGroup: elements.misslineOffsetGroup,
+            misslineOffset: elements.misslineOffset,
+            misslineOffsetValue: elements.misslineOffsetValue,
             paddleControl: elements.paddleControl,
             paddleSettings: elements.paddleSettings,
             tapSettings: elements.tapSettings,
@@ -189,6 +194,44 @@ export class ToolPaletteController {
         if (this.elements.gridSnap) {
             this.elements.gridSnap.addEventListener('change', (e) => {
                 this.editor.gridSnapEnabled = e.target.checked;
+            });
+        }
+
+        // Flip normal side button
+        if (this.elements.flipNormalBtn) {
+            this.elements.flipNormalBtn.addEventListener('click', () => {
+                const selectedLine = this.editor.lineManager.getSelectedLine();
+                if (selectedLine && selectedLine.type === 'paddle') {
+                    const current = selectedLine.normalSide ?? 'left';
+                    const flipped = current === 'left' ? 'right' : 'left';
+                    this.editor.lineManager.updateLine(selectedLine.id, { normalSide: flipped });
+                    this._updateNormalSideButton(flipped);
+                }
+            });
+        }
+
+        // Pairing checkbox: toggle automatic missline generation
+        if (this.elements.pairMisslineCheckbox) {
+            this.elements.pairMisslineCheckbox.addEventListener('change', (e) => {
+                const pairingEnabled = e.target.checked;
+                this.editor.lineManager.pairingEnabled = pairingEnabled;
+                // Show/hide offset group
+                if (this.elements.misslineOffsetGroup) {
+                    this.elements.misslineOffsetGroup.style.display = pairingEnabled ? '' : 'none';
+                }
+            });
+        }
+
+        // Missline offset slider
+        if (this.elements.misslineOffset) {
+            this.elements.misslineOffset.addEventListener('input', (e) => {
+                const offset = parseInt(e.target.value);
+                // Update display value
+                if (this.elements.misslineOffsetValue) {
+                    this.elements.misslineOffsetValue.textContent = offset;
+                }
+                // Update lineManager setting
+                this.editor.lineManager.pairOffset = offset;
             });
         }
 
@@ -348,6 +391,7 @@ export class ToolPaletteController {
 
         // Update paddle-specific properties
         if (line.type === 'paddle') {
+            this._updateNormalSideButton(line.normalSide ?? 'left');
             if (this.elements.paddleControl) {
                 this.elements.paddleControl.value = line.paddleControl || 'mouse-x';
             }
@@ -440,6 +484,18 @@ export class ToolPaletteController {
     _updatePathSpeedVisibility(pathLineId) {
         if (this.elements.pathSpeedSettings) {
             this.elements.pathSpeedSettings.style.display = pathLineId ? '' : 'none';
+        }
+    }
+
+    /**
+     * Update normal side button text to reflect current state
+     * @private
+     * @param {'left'|'right'} side
+     */
+    _updateNormalSideButton(side) {
+        if (this.elements.flipNormalBtn) {
+            this.elements.flipNormalBtn.textContent =
+                side === 'left' ? '反転（現在: 左が上）' : '反転（現在: 右が上）';
         }
     }
 }
