@@ -402,12 +402,24 @@ export class Game {
 
     /**
      * Handle tap mode click
+     * Priority: Ball hit > Gem collection
      * @private
      */
     _handleTap(x, y) {
         if (!this.tapSystem.active) return;
         if (this.state.state !== STATES.PLAYING) return;
-        this.tapSystem.handleTap(x, y, this.ballSystem.balls);
+
+        // Priority 1: Try to hit a ball
+        const ballHit = this.tapSystem.handleTap(x, y, this.ballSystem.balls);
+        if (ballHit) return;
+
+        // Priority 2: Try to collect a gem (if click is in tap area)
+        if (this.tapSystem.isPointInTapArea(x, y)) {
+            this.gemSystem.collectByTap(x, y, 60, (gem) => {
+                this.state.addGems(1);
+                this.showMessage('+1 Gem', 'info', 1000);
+            });
+        }
     }
 
     /**

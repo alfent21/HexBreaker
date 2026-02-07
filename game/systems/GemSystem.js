@@ -107,6 +107,40 @@ export class GemSystem {
     }
 
     /**
+     * Try to collect a gem by tap at the given position
+     * @param {number} x - Tap X coordinate
+     * @param {number} y - Tap Y coordinate
+     * @param {number} [radius=50] - Collection radius
+     * @param {Function} [onCollect] - Callback when gem is collected
+     * @returns {boolean} - Whether a gem was collected
+     */
+    collectByTap(x, y, radius = 50, onCollect = null) {
+        let closestGem = null;
+        let closestDist = radius;
+        let closestIndex = -1;
+
+        for (let i = 0; i < this.gems.length; i++) {
+            const gem = this.gems[i];
+            const dist = Math.hypot(x - gem.x, y - gem.y);
+            if (dist < closestDist) {
+                closestDist = dist;
+                closestGem = gem;
+                closestIndex = i;
+            }
+        }
+
+        if (closestGem && closestIndex >= 0) {
+            this.gems.splice(closestIndex, 1);
+            if (onCollect) {
+                onCollect(closestGem);
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Clear all gems (for stage reset)
      */
     clear() {
