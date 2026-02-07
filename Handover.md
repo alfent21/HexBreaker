@@ -1,102 +1,74 @@
-# Handover - 2026-02-05
+# Handover - 2026-02-07
 
 プロジェクト「HexBreaker」の現状と次回作業の引継ぎ情報です。
 
 ## 今回のセッション完了作業
 
-### 1. ウィザードUI改善
+### フェーズ2: パドル + ミスラインのペアリング（エディタ）
 
-- **全ステップ同一サイズ化**: `.wizard-modal` に固定高さ540px + flexboxレイアウト
-- **ドロップゾーン高さ修正**: `.drop-zone` の min-height を 208px に統一（box-sizing: border-box対応）
-- **警告テキスト修正**: Step3「グリッドサイズは作成後に変更できません」→「各ステージのグリッドサイズはステージ作成後に変更できません」、アイコンを `info-circle` に変更
+パドルライン作成時にミスラインを自動生成するペアリング機能を実装。
 
-#### 変更ファイル
-| ファイル | 変更内容 |
-|---------|---------|
-| `css/editor.css` | `.wizard-modal`, `.wizard-step`, `.wizard-content`, `.wizard-footer`, `.drop-zone` のスタイル |
-| `index.html` | Step3警告テキスト・アイコン |
-
-### 2. ライン生成バグ修正
-
-**原因**: `LineManager.createLine(points, options)` に対して、Editor.jsが単一オブジェクト `createLine({type, points, color, ...})` を渡していた → TypeError
+#### 実装済み機能
+| 機能 | 状態 |
+|------|------|
+| パドル作成時にミスラインを自動生成（normalSide反対側にオフセット） | ✅ |
+| ペアリングON/OFFチェックボックス | ✅ |
+| オフセット距離スライダー（20-200px、デフォルト50px） | ✅ |
+| パドル削除時にペアのミスラインも自動削除 | ✅ |
+| ライン端点クリックで既存ラインから描画再開機能 | ✅ |
+| normalSide反転ボタン | ✅ |
 
 #### 変更ファイル
 | ファイル | 変更内容 |
 |---------|---------|
-| `editor/core/Editor.js` | `_ensureDefaultLines` 2箇所 + `_generatePresetLines` 2箇所の createLine 呼び出しを `(points, options)` 形式に修正 |
-
-### 3. 保存済みステージのライン復元
-
-**原因**: 古い保存データは `stage.lines = []`（createLineバグで空配列のまま保存されていた）
-
-#### 変更ファイル
-| ファイル | 変更内容 |
-|---------|---------|
-| `editor/core/Editor.js` | `_loadStageData()` でライン読み込み後に `_ensureDefaultLines()` を呼び出し |
-
-### 4. パドル/ミスラインのエディタ可視化
-
-パドルラインに青帯、ミスラインに赤帯の半透明バンドをエディタ上に表示。
-
-#### 変更ファイル
-| ファイル | 変更内容 |
-|---------|---------|
-| `editor/systems/RenderSystem.js` | `_drawLineBand()` メソッド追加、`_drawLines()` でpaddle/misslineタイプにバンド描画 |
+| `editor/managers/LineManager.js` | `createPaddleWithMissline()`, `resumeDrawingFrom()`, `findEndpointAt()` 追加、ペアリングプロパティ |
+| `editor/systems/RenderSystem.js` | `_drawLineBand()` をnormalSide対応に改修 |
+| `editor/ui/UIController.js` | 新UI要素のキャッシュ追加 |
+| `editor/ui/controllers/ToolPaletteController.js` | ペアリングUI制御、反転ボタン処理 |
+| `index.html` | パドル設定パネルにペアリングUI追加 |
+| `editor/core/Events.js` | ライン端点からの描画再開処理 |
 
 ---
 
-## 次回作業: タップモード改善 + パドルライン設計改善
+## 次回作業
 
-詳細プラン: `C:\Users\alfen\.claude\plans\lovely-chasing-spring.md`
+### フェーズ2 残タスク: ミスライン単独作成の制限
 
-### 議論で決まった設計方針
+設計方針では「ミスライン単独作成は不可（パドルラインが必須）」となっているが、未実装。
 
-#### パドルラインの `normalSide` プロパティ
+**対応案:**
+- ラインタイプ選択でmisslineを選択不可にする
+- または、missline選択時に警告を表示してpaddleへリダイレクト
 
-- パドルラインに「上」方向（ボール反射側）を `normalSide: 'left' | 'right'` で明示的に持たせる
-- ライン進行方向(p1→p2→...)の左側 or 右側で表現
-- ミスラインとセット作成時は自動決定、単独パドルラインはユーザー指定
-- ゲーム側はこの値を読むだけ（ランタイム計算不要）
+### フェーズ3: タップ反射修正 + ジェム収集
 
-#### タップ反射（仮想パドル方式）
+- TapSystem: `normalSide` を使った仮想パドル反射
+- タップ領域: ミスラインまでの全域で打ち返し可能
+- ジェムタップ収集（ボール打ち返し優先）
 
-- タップ位置に仮想パドルが出現するイメージ
-- クリック位置 = パドル中心、ボール位置との差で `offsetRatio` を計算
-- `normalSide` から法線角度を取得し、`angle = normalAngle + offsetRatio × 60°` で方向決定
-- クリックの右にボール → 左に飛ぶ（通常パドルと同じ感覚）
+### フェーズ4: 曲線パドルライン対応（別途プラン）
 
-#### ジェム収集
+---
 
-- タップ優先度: ボール打ち返し > ジェム収集
-- ボールが近くになければ、クリック付近のジェムをタップ収集
+## 別タスク（保留中）
 
-### フェーズ分け
+### Miss Line Effect
 
-| フェーズ | 内容 | 主要ファイル |
-|---------|------|-------------|
-| **1** | `normalSide` プロパティ導入（エディタ+データ） | `LineManager.js`, `RenderSystem.js`, UI |
-| **2** | パドル+ミスラインのペアリング（エディタ） | `LineManager.js`, UI |
-| **3** | タップ反射修正 + ジェム収集 | `TapSystem.js`, `Game.js` |
-| **4** | 曲線パドルライン対応（別途プラン） | 未定 |
+- デザイン確定済み（Nebula / Light Leak）
+- ゲーム統合は保留（ユーザーリクエストによる）
+- テスター: `tools/effect_tester/missline_tester.html`
 
-### ペアリング設計の要点
+### Laser Effects
 
-- パドルライン作成時、ミスラインを自動生成（オフセット距離はユーザー設定可能）
-- ミスライン単独作成は不可（パドルラインが必須）
-- パドルライン単独作成は可能（ペアリングなしオプション）
-
-### 曲線パドルラインの要点
-
-- 屈曲・曲線のパドルラインにパドルが形状追従する
-- 各セグメントの `normalSide` から個別法線を導出（進行方向の左/右で自然に追従）
+- 3つの演出改善案がプランとして存在
+- 詳細: `plans/laser_effects.md`
 
 ---
 
 ## 既知の問題
 
-（前回から継続）
 - Blockify操作のUndoは未実装（LayerManager経由のため）
 - レイヤー追加/削除のUndoは除外（複雑すぎるため）
 
 ---
-更新日時: 2026-02-05
+更新日時: 2026-02-07
