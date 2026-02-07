@@ -125,6 +125,7 @@ export class TapSystem {
 
         for (const ball of balls) {
             if (ball.attached) continue;
+            if (ball.tapCooldown > 0) continue; // Skip balls on cooldown
             if (!this.isBallInTapArea(ball)) continue;
 
             const dist = Math.hypot(clickX - ball.x, clickY - ball.y);
@@ -146,6 +147,7 @@ export class TapSystem {
 
     /**
      * Apply virtual paddle reflection to a ball
+     * Ball ALWAYS flies toward normalSide direction, with angle adjusted by click position
      * @param {Object} ball
      * @param {number} clickX
      * @param {number} clickY
@@ -157,18 +159,18 @@ export class TapSystem {
         const p1 = points[segmentIndex];
         const p2 = points[segmentIndex + 1];
 
-        // Segment direction vector
+        // Segment direction vector (tangent)
         const dx = p2.x - p1.x;
         const dy = p2.y - p1.y;
         const len = Math.hypot(dx, dy);
         if (len === 0) return;
 
-        // Normalized segment direction
+        // Normalized tangent (along the paddle line)
         const tx = dx / len;
         const ty = dy / len;
 
-        // Normal vector (perpendicular to segment, pointing to normalSide)
-        // Left normal: (-dy, dx), Right normal: (dy, -dx)
+        // Normal vector pointing to normalSide (this is where the ball MUST go)
+        // Left of line direction: (-ty, tx), Right: (ty, -tx)
         let nx, ny;
         if (this.normalSide === 'left') {
             nx = -ty;
@@ -178,25 +180,32 @@ export class TapSystem {
             ny = -tx;
         }
 
-        // Calculate offset ratio: project (ball - click) onto segment direction
-        const ballToClickX = ball.x - clickX;
-        const ballToClickY = ball.y - clickY;
-        const projection = ballToClickX * tx + ballToClickY * ty;
+        // Calculate where ball is relative to click, along the paddle line
+        // Positive = ball is in positive tangent direction from click
+        const ballRelX = ball.x - clickX;
+        const ballRelY = ball.y - clickY;
+        const tangentOffset = ballRelX * tx + ballRelY * ty;
 
-        // Normalize to [-1, 1] based on paddle width (use 100px as reference)
-        const paddleWidth = 100;
-        const offsetRatio = Math.max(-1, Math.min(1, projection / (paddleWidth / 2)));
+        // Normalize offset to [-1, 1] (100px = full offset)
+        const maxOffset = 50;
+        const offsetRatio = Math.max(-1, Math.min(1, tangentOffset / maxOffset));
 
-        // Calculate reflection angle
-        // Base angle is the normal direction, offset by ±60° based on position
-        const normalAngle = Math.atan2(ny, nx);
+        // Base direction is normalSide (the direction ball MUST fly)
+        const baseAngle = Math.atan2(ny, nx);
+
+        // Adjust angle: if ball is to the "right" of click (positive tangent),
+        // fly more to the "left" (negative angle offset), and vice versa
+        // This creates the natural paddle feel
         const maxAngleOffset = Math.PI / 3; // 60 degrees
-        const angle = normalAngle + offsetRatio * maxAngleOffset;
+        const angle = baseAngle - offsetRatio * maxAngleOffset;
 
         // Apply new velocity (maintain speed)
         const speed = Math.hypot(ball.dx, ball.dy);
         ball.dx = Math.cos(angle) * speed;
         ball.dy = Math.sin(angle) * speed;
+
+        // Set cooldown to prevent rapid re-hitting
+        ball.tapCooldown = 300; // ms
     }
 
     /**

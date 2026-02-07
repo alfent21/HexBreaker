@@ -21,6 +21,9 @@ export class Ball {
         // Collision tracking to prevent repeated collisions
         this.lastLineHitId = null;
         this.lastLineHitTime = 0;
+
+        // Tap mode cooldown (ms) - prevents rapid re-hitting
+        this.tapCooldown = 0;
     }
 
     /**
@@ -48,6 +51,11 @@ export class Ball {
      */
     update(dt, inputSpeedMultiplier = 1.0) {
         if (!this.active) return;
+
+        // Decrease tap cooldown
+        if (this.tapCooldown > 0) {
+            this.tapCooldown -= dt * 1000; // dt is in seconds, cooldown in ms
+        }
 
         // Apply speed multiplier (Base * Weapon * Input)
         const currentSpeed = this.speed * this.speedMultiplier * inputSpeedMultiplier;
