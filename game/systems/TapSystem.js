@@ -62,7 +62,7 @@ export class TapSystem {
     }
 
     /**
-     * Check if a point is within the tap area (between paddle and missline)
+     * Check if a point is within the tap area (within tapDistance from paddle line, both sides)
      * @param {number} x
      * @param {number} y
      * @returns {boolean}
@@ -73,7 +73,7 @@ export class TapSystem {
         const points = this.paddleLine.points;
         if (!points || points.length < 2) return false;
 
-        // Check each segment
+        // Check each segment - tap area is both sides of the paddle line
         for (let i = 0; i < points.length - 1; i++) {
             const p1 = points[i];
             const p2 = points[i + 1];
@@ -81,14 +81,8 @@ export class TapSystem {
             // Calculate distance to segment
             const dist = this._pointToSegmentDistance(x, y, p1, p2);
 
-            // Check if within tap distance
-            if (dist > this.tapDistance) continue;
-
-            // Check if on the correct side (normalSide side only)
-            const side = this._getPointSide(x, y, p1, p2);
-            const expectedSide = this.normalSide === 'left' ? 1 : -1;
-
-            if (side === expectedSide && dist <= this.tapDistance) {
+            // Within tap distance = in tap area (both sides of paddle line)
+            if (dist <= this.tapDistance) {
                 return true;
             }
         }
@@ -271,7 +265,7 @@ export class TapSystem {
 
     /**
      * Render tap area visualization
-     * Only renders the normalSide (play field side) of the paddle line
+     * Renders both sides of the paddle line (full tap area)
      * @param {CanvasRenderingContext2D} ctx
      */
     render(ctx) {
@@ -294,25 +288,16 @@ export class TapSystem {
             const len = Math.hypot(dx, dy);
             if (len === 0) continue;
 
-            // Normal vector (left side)
-            const lnx = -dy / len;
-            const lny = dx / len;
+            // Normal vector
+            const nx = (-dy / len) * tapDist;
+            const ny = (dx / len) * tapDist;
 
-            // Draw only on normalSide
-            let nx, ny;
-            if (this.normalSide === 'left') {
-                nx = lnx * tapDist;
-                ny = lny * tapDist;
-            } else {
-                nx = -lnx * tapDist;
-                ny = -lny * tapDist;
-            }
-
+            // Draw both sides of paddle line
             ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
+            ctx.moveTo(p1.x + nx, p1.y + ny);
             ctx.lineTo(p2.x + nx, p2.y + ny);
-            ctx.lineTo(p1.x + nx, p1.y + ny);
+            ctx.lineTo(p2.x - nx, p2.y - ny);
+            ctx.lineTo(p1.x - nx, p1.y - ny);
             ctx.closePath();
             ctx.fill();
         }
