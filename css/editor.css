@@ -233,6 +233,12 @@
     color: #FFFFFF;
 }
 
+.line-type-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 /* Canvas Container */
 .canvas-container {
     grid-area: canvas;
