@@ -57,6 +57,8 @@ export class ToolPaletteController {
             paddleSettings: elements.paddleSettings,
             tapSettings: elements.tapSettings,
             tapRange: elements.tapRange,
+            hitRadius: elements.hitRadius,
+            hitRadiusValue: elements.hitRadiusValue,
             pathSettings: elements.pathSettings,
             pathLineSelect: elements.pathLineSelect,
             pathSpeedSettings: elements.pathSpeedSettings,
@@ -262,6 +264,21 @@ export class ToolPaletteController {
             });
         }
 
+        // Hit radius
+        if (this.elements.hitRadius) {
+            this.elements.hitRadius.addEventListener('input', (e) => {
+                const hitRadius = parseInt(e.target.value);
+                // Update display value
+                if (this.elements.hitRadiusValue) {
+                    this.elements.hitRadiusValue.textContent = hitRadius;
+                }
+                const selectedLine = this.editor.lineManager.getSelectedLine();
+                if (selectedLine && selectedLine.type === 'paddle') {
+                    this.editor.lineManager.updateLine(selectedLine.id, { hitRadius });
+                }
+            });
+        }
+
         // Path line select
         if (this.elements.pathLineSelect) {
             this.elements.pathLineSelect.addEventListener('change', (e) => {
@@ -398,6 +415,13 @@ export class ToolPaletteController {
             this._updateTapSettingsVisibility(line.paddleControl || 'mouse-x');
             if (this.elements.tapRange) {
                 this.elements.tapRange.value = line.tapRange || TAP_DEFAULTS.tapRange;
+            }
+            if (this.elements.hitRadius) {
+                const hitRadius = line.hitRadius ?? 60;
+                this.elements.hitRadius.value = hitRadius;
+                if (this.elements.hitRadiusValue) {
+                    this.elements.hitRadiusValue.textContent = hitRadius;
+                }
             }
         }
 

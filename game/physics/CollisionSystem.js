@@ -142,7 +142,7 @@ export class CollisionSystem {
      * @param {number} [threshold=20] - Detection threshold in pixels
      * @returns {boolean}
      */
-    checkMissLine(ball, missLines, threshold = 20) {
+    checkMissLine(ball, missLines) {
         for (const line of missLines) {
             if (!line.points || line.points.length < 2) continue;
 
@@ -151,7 +151,8 @@ export class CollisionSystem {
                     ball.x, ball.y,
                     line.points[i], line.points[i + 1]
                 );
-                if (dist <= threshold) return true;
+                // ボールの端がラインに触れたらミス判定（中心ではなく端を基準）
+                if (dist <= ball.radius) return true;
             }
         }
         return false;

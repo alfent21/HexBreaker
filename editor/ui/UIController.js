@@ -157,6 +157,8 @@ export class UIController {
             paddleSettings: this.elements.paddleSettings,
             tapSettings: this.elements.tapSettings,
             tapRange: this.elements.tapRange,
+            hitRadius: this.elements.hitRadius,
+            hitRadiusValue: this.elements.hitRadiusValue,
             pathSettings: this.elements.pathSettings,
             pathLineSelect: this.elements.pathLineSelect,
             pathSpeedSettings: this.elements.pathSpeedSettings,
@@ -167,6 +169,13 @@ export class UIController {
         this._bindMenuEvents();
         this._bindEditorEvents();
         this._initToolbar();
+
+        // 復元時に保留されていたブロック描画設定を適用
+        if (this.editor.pendingBlockRenderSettings) {
+            this.applyBlockRenderSettings(this.editor.pendingBlockRenderSettings);
+            this.editor.pendingBlockRenderSettings = null;
+            this._addMessage('info', '保留中のブロック描画設定を適用しました');
+        }
 
         this._addMessage('info', 'UI Controller initialized');
     }
@@ -225,6 +234,8 @@ export class UIController {
             paddleSettings: document.getElementById('paddle-settings'),
             tapSettings: document.getElementById('tap-settings'),
             tapRange: document.getElementById('tap-range'),
+            hitRadius: document.getElementById('hit-radius'),
+            hitRadiusValue: document.getElementById('hit-radius-value'),
             pathSettings: document.getElementById('path-settings'),
             pathLineSelect: document.getElementById('path-line-select'),
             pathSpeedSettings: document.getElementById('path-speed-settings'),

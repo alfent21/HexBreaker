@@ -229,6 +229,11 @@ export class Game {
             this._updateUI();
         });
 
+        // Update tap effects (pass balls to reset wasHitInTapArea flags)
+        if (this.tapSystem.active) {
+            this.tapSystem.update(dt, this.balls);
+        }
+
         // Update boss
         if (this.bossSystem.isActive) {
             this._updateBoss(dt);
@@ -409,17 +414,15 @@ export class Game {
         if (!this.tapSystem.active) return;
         if (this.state.state !== STATES.PLAYING) return;
 
-        // Priority 1: Try to hit a ball
-        const ballHit = this.tapSystem.handleTap(x, y, this.ballSystem.balls);
-        if (ballHit) return;
+        // Hit ball and collect gem simultaneously
+        this.tapSystem.handleTap(x, y, this.ballSystem.balls);
 
-        // Priority 2: Try to collect a gem (if click is in tap area)
-        if (this.tapSystem.isPointInTapArea(x, y)) {
-            this.gemSystem.collectByTap(x, y, 60, (gem) => {
-                this.state.addGems(1);
-                this.showMessage('+1 Gem', 'info', 1000);
-            });
-        }
+        // Collect gem in same hitRadius
+        this.gemSystem.collectByTap(x, y, this.tapSystem.hitRadius, (gem) => {
+            this.state.addGems(1);
+            // Spawn +1 popup at gem position
+            this.tapSystem.spawnTextEffect(gem.x, gem.y, '+1');
+        });
     }
 
     /**

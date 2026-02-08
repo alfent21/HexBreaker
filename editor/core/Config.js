@@ -110,7 +110,7 @@ export const LINE_DEFAULTS = {
     color: '#FFFF00',
     thickness: 3,
     opacity: 1.0,
-    paddleControl: 'mouse-x'
+    paddleControl: 'tap'
 };
 
 // Paddle control options

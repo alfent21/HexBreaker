@@ -144,6 +144,7 @@ export class LineManager {
                 paddleControl: opts.paddleControl,
                 normalSide: opts.normalSide,
                 tapRange: opts.tapRange,
+                hitRadius: opts.hitRadius,
                 pathLineId: opts.pathLineId,
                 pathSpeed: opts.pathSpeed,
                 pairedMisslineId: opts.pairedMisslineId,
@@ -238,6 +239,7 @@ export class LineManager {
         if (line.type === 'paddle') {
             line.normalSide = options.normalSide ?? 'left';
             line.tapRange = options.tapRange ?? null;
+            line.hitRadius = options.hitRadius ?? 60;
             line.pathLineId = options.pathLineId ?? null;
             line.pathSpeed = options.pathSpeed ?? null;
             // Pairing properties
@@ -657,6 +659,7 @@ export class LineManager {
             paddleControl: line.paddleControl,
             normalSide: line.normalSide,
             tapRange: line.tapRange,
+            hitRadius: line.hitRadius,
             pathLineId: line.pathLineId,
             pathSpeed: line.pathSpeed,
             pairedMisslineId: line.pairedMisslineId,

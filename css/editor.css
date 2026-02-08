@@ -436,10 +436,7 @@
     opacity: 0.8;
 }
 
-.layer-item.base-layer {
-    background: var(--color-bg-tertiary);
-    border-bottom: 2px solid var(--color-accent);
-}
+/* base-layer badge is sufficient - no special styling needed */
 
 .layer-name input {
     width: 100%;

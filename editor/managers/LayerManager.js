@@ -180,9 +180,12 @@ export class LayerManager {
     /**
      * Get layer by ID
      * @param {number} id - Layer ID
-     * @returns {ImageLayer|BlockLayer|null}
+     * @returns {ImageLayer|BlockLayer|BaseLayer|null}
      */
     getLayer(id) {
+        if (id === 0 && this.baseLayer) {
+            return this.baseLayer;
+        }
         return this.layers.find(l => l.id === id) || null;
     }
 
@@ -640,6 +643,11 @@ export class LayerManager {
             this.activeLayerId = this.layers[0].id;
         } else {
             this.activeLayerId = null;
+        }
+
+        // Notify UI of active layer change
+        if (this.onActiveLayerChange) {
+            this.onActiveLayerChange(this.getActiveLayer());
         }
     }
 

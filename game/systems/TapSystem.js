@@ -22,6 +22,15 @@ export class TapSystem {
 
         /** @type {'left'|'right'} - Normal side (play field side) */
         this.normalSide = 'left';
+
+        /** @type {number} - Hit radius for ball selection (max distance from click) */
+        this.hitRadius = 60;
+
+        /** @type {Array} - Racket effect animations [{x, y, age, duration, radius, hit}] */
+        this.racketEffects = [];
+
+        /** @type {Array} - Text popup effects [{x, y, text, age, duration}] */
+        this.textEffects = [];
     }
 
     /**
@@ -55,6 +64,9 @@ export class TapSystem {
                 } else {
                     this.tapDistance = 50;
                 }
+
+                // Load hit radius (max distance from click to hit a ball)
+                this.hitRadius = line.hitRadius ?? 60;
 
                 break;
             }
@@ -109,32 +121,48 @@ export class TapSystem {
     handleTap(clickX, clickY, balls) {
         if (!this.active) return false;
 
-        // First check if click is in tap area
+        // クリック位置がタップエリア内かチェック
         if (!this.isPointInTapArea(clickX, clickY)) return false;
 
-        // Find the closest ball in tap area to the click point
+        // Find the closest ball within hitRadius of click point
         let closestBall = null;
-        let closestDist = Infinity;
+        let closestDist = this.hitRadius;
         let closestSegment = -1;
 
         for (const ball of balls) {
             if (ball.attached) continue;
-            if (ball.tapCooldown > 0) continue; // Skip balls on cooldown
-            if (!this.isBallInTapArea(ball)) continue;
+            if (ball.wasHitInTapArea) continue;
 
             const dist = Math.hypot(clickX - ball.x, clickY - ball.y);
             if (dist < closestDist) {
                 closestDist = dist;
                 closestBall = ball;
-                // Find which segment the ball is closest to
                 closestSegment = this._findClosestSegment(ball.x, ball.y);
             }
         }
 
-        if (!closestBall || closestSegment < 0) return false;
+        const hit = closestBall && closestSegment >= 0;
+
+        // Show racket at click position (color based on hit)
+        this.racketEffects.push({
+            x: clickX,
+            y: clickY,
+            age: 0,
+            duration: 0.3,
+            radius: this.hitRadius,
+            hit: hit
+        });
+
+        if (!hit) return false;
 
         // Apply virtual paddle reflection
         this._applyVirtualPaddleReflection(closestBall, clickX, clickY, closestSegment);
+
+        // Flash the ball
+        closestBall.flashTime = 0.15;
+
+        // Mark as hit (prevents re-hitting until ball leaves tap area)
+        closestBall.wasHitInTapArea = true;
 
         return true;
     }
@@ -180,8 +208,9 @@ export class TapSystem {
         const ballRelY = ball.y - clickY;
         const tangentOffset = ballRelX * tx + ballRelY * ty;
 
-        // Normalize offset to [-1, 1] (100px = full offset)
-        const maxOffset = 50;
+        // Normalize offset to [-1, 1] based on hitRadius
+        // At hitRadius edge = ±1, center = 0
+        const maxOffset = this.hitRadius;
         const offsetRatio = Math.max(-1, Math.min(1, tangentOffset / maxOffset));
 
         // Base direction is normalSide (the direction ball MUST fly)
@@ -264,6 +293,52 @@ export class TapSystem {
     }
 
     /**
+     * Spawn a text popup effect (e.g., "+1" for gem collection)
+     * @param {number} x
+     * @param {number} y
+     * @param {string} text
+     */
+    spawnTextEffect(x, y, text) {
+        this.textEffects.push({
+            x,
+            y,
+            text,
+            age: 0,
+            duration: 0.6
+        });
+    }
+
+    /**
+     * Update effects and reset hit flags (call from game loop)
+     * @param {number} dt - Delta time in seconds
+     * @param {Array} [balls] - Ball array to check for tap area exit
+     */
+    update(dt, balls = []) {
+        // Reset wasHitInTapArea for balls that left the tap area
+        for (const ball of balls) {
+            if (ball.wasHitInTapArea && !this.isBallInTapArea(ball)) {
+                ball.wasHitInTapArea = false;
+            }
+        }
+
+        // Update racket effects
+        for (let i = this.racketEffects.length - 1; i >= 0; i--) {
+            this.racketEffects[i].age += dt;
+            if (this.racketEffects[i].age >= this.racketEffects[i].duration) {
+                this.racketEffects.splice(i, 1);
+            }
+        }
+
+        // Update text effects
+        for (let i = this.textEffects.length - 1; i >= 0; i--) {
+            this.textEffects[i].age += dt;
+            if (this.textEffects[i].age >= this.textEffects[i].duration) {
+                this.textEffects.splice(i, 1);
+            }
+        }
+    }
+
+    /**
      * Render tap area visualization
      * Renders both sides of the paddle line (full tap area)
      * @param {CanvasRenderingContext2D} ctx
@@ -329,6 +404,31 @@ export class TapSystem {
             }
             ctx.stroke();
             ctx.setLineDash([]);
+        }
+
+        // Render racket (color based on hit: green=hit, white=miss)
+        for (const racket of this.racketEffects) {
+            const t = racket.age / racket.duration;
+            ctx.globalAlpha = 0.6 * (1 - t);
+            ctx.strokeStyle = racket.hit ? '#00FF00' : '#FFFFFF';
+            ctx.lineWidth = racket.hit ? 3 : 2;
+            ctx.beginPath();
+            ctx.arc(racket.x, racket.y, racket.radius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // Render text effects (+1 popup for gem collection)
+        for (const text of this.textEffects) {
+            const t = text.age / text.duration;
+            // Float upward
+            const floatY = text.y - t * 30;
+            // Fade out
+            ctx.globalAlpha = 1 - t;
+            ctx.fillStyle = '#FFD700'; // Gold color
+            ctx.font = 'bold 20px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text.text, text.x, floatY);
         }
 
         ctx.restore();

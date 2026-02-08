@@ -52,6 +52,8 @@ export class Editor {
         this.isDirty = false;
         this.isInitialized = false;
         this.gridSnapEnabled = true; // グリッド頂点への強制スナップ
+        this._autoSaveTimer = null; // Debounce timer for auto-save
+        this.pendingBlockRenderSettings = null; // 復元時にUIController未初期化の場合に一時保存
 
         // Event emitter
         this._eventHandlers = {};
@@ -97,6 +99,18 @@ export class Editor {
 
         // Set initial button states
         this.historySystem.updateButtons();
+
+        // Auto-save to localStorage on page unload
+        window.addEventListener('beforeunload', () => {
+            this._autoSave();
+        });
+
+        // Auto-save every 30 seconds if dirty
+        setInterval(() => {
+            if (this.isDirty) {
+                this._autoSave();
+            }
+        }, 30000);
 
         // Initial render
         this.render();
@@ -303,6 +317,22 @@ export class Editor {
         if (!stage) return;
 
         stage.lines = this.lineManager.serialize();
+    }
+
+    /**
+     * Auto-save current project to localStorage
+     * @private
+     */
+    _autoSave() {
+        if (!this.isInitialized) return;
+        const stage = this.getCurrentStage();
+        if (!stage) return;
+
+        try {
+            this.startupManager.saveToLocalStorage();
+        } catch (e) {
+            console.warn('Auto-save failed:', e);
+        }
     }
 
     /**
@@ -517,8 +547,9 @@ export class Editor {
             baseLayerOptions
         );
 
-        // Create default block layer
+        // Create default block layer and set it as active
         const blockLayer = this.layerManager.addBlockLayer('Block Layer 1');
+        this.layerManager.setActiveLayer(blockLayer.id);
 
         // Generate preset lines if configured
         if (config.presets) {
@@ -558,9 +589,10 @@ export class Editor {
         const hasMissline = lines.some(l => l.type === 'missline');
 
         if (!hasPaddle) {
+            // Horizontal paddle line (left→right): normalSide 'right' = ball flies UP
             this.lineManager.createLine(
                 [{ x: 0, y: canvasHeight - 50 }, { x: canvasWidth, y: canvasHeight - 50 }],
-                { type: 'paddle', color: '#00FF00', thickness: 3, opacity: 1 }
+                { type: 'paddle', color: '#00FF00', thickness: 3, opacity: 1, normalSide: 'right' }
             );
         }
 
@@ -585,38 +617,47 @@ export class Editor {
             const pos = extraArea.position;
             const size = extraArea.size;
             let points = [];
+            let normalSide = 'right'; // Default: ball flies toward play field
 
             switch (pos) {
                 case 'bottom':
+                    // Horizontal line (left→right), ball should fly UP
                     points = [
                         { x: 0, y: canvasHeight - size / 2 },
                         { x: canvasWidth, y: canvasHeight - size / 2 }
                     ];
+                    normalSide = 'right'; // Up
                     break;
                 case 'top':
+                    // Horizontal line (left→right), ball should fly DOWN
                     points = [
                         { x: 0, y: size / 2 },
                         { x: canvasWidth, y: size / 2 }
                     ];
+                    normalSide = 'left'; // Down
                     break;
                 case 'left':
+                    // Vertical line (top→bottom), ball should fly RIGHT
                     points = [
                         { x: size / 2, y: 0 },
                         { x: size / 2, y: canvasHeight }
                     ];
+                    normalSide = 'left'; // Right
                     break;
                 case 'right':
+                    // Vertical line (top→bottom), ball should fly LEFT
                     points = [
                         { x: canvasWidth - size / 2, y: 0 },
                         { x: canvasWidth - size / 2, y: canvasHeight }
                     ];
+                    normalSide = 'right'; // Left
                     break;
             }
 
             if (points.length > 0) {
                 this.lineManager.createLine(
                     points,
-                    { type: 'paddle', color: '#00FF00', thickness: 3, opacity: 1 }
+                    { type: 'paddle', color: '#00FF00', thickness: 3, opacity: 1, normalSide }
                 );
             }
         }

@@ -2,7 +2,7 @@
  * StartupManager.js - 起動フロー管理
  *
  * 起動時のダイアログ表示、新規プロジェクトウィザード、
- * localStorageからの自動復元を担当。
+ * IndexedDBからの自動復元を担当。
  */
 
 import { BG_COLOR_PRESETS } from './LayerManager.js';
@@ -26,8 +26,6 @@ import { fileManager } from '../systems/FileManager.js';
  * @property {string} missLinePreset - 'auto' | 'none'
  * @property {string} gridSize - 'small' | 'medium' | 'large'
  */
-
-const STORAGE_KEY = 'hexbreaker_last_project';
 
 export class StartupManager {
     /**
@@ -79,20 +77,21 @@ export class StartupManager {
      * @returns {Promise<boolean>} True if project was restored
      */
     async checkStartup() {
-        // Check localStorage for last project
-        const lastProject = localStorage.getItem(STORAGE_KEY);
+        try {
+            // IndexedDBから復元を試みる
+            const restored = await this.editor.projectFileSystem.restoreFromLocalStorage();
 
-        if (lastProject) {
-            try {
-                const data = JSON.parse(lastProject);
-                await this._restoreProject(data);
+            if (restored) {
                 this._hideStartupDialog();
+                this.editor.emit('message', { type: 'success', text: '前回のプロジェクトを復元しました' });
                 return true;
-            } catch (e) {
-                console.warn('Failed to restore last project:', e);
-                localStorage.removeItem(STORAGE_KEY);
             }
+        } catch (e) {
+            this.editor.emit('message', { type: 'error', text: `復元失敗: ${e.message}` });
+            await this.editor.projectFileSystem.clearLocalStorage();
         }
+
+        this.editor.emit('message', { type: 'warning', text: '保存データなし - 新規作成してください' });
 
         // Show startup dialog
         this._showStartupDialog();
@@ -100,17 +99,17 @@ export class StartupManager {
     }
 
     /**
-     * Save current project to localStorage
+     * Save current project to IndexedDB
      */
     saveToLocalStorage() {
         return this.editor.projectFileSystem.saveToLocalStorage();
     }
 
     /**
-     * Clear saved project from localStorage
+     * Clear saved project from IndexedDB
      */
-    clearLocalStorage() {
-        localStorage.removeItem(STORAGE_KEY);
+    async clearLocalStorage() {
+        await this.editor.projectFileSystem.clearLocalStorage();
     }
 
     // ==================== Startup Dialog ====================

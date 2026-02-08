@@ -22,8 +22,11 @@ export class Ball {
         this.lastLineHitId = null;
         this.lastLineHitTime = 0;
 
-        // Tap mode cooldown (ms) - prevents rapid re-hitting
-        this.tapCooldown = 0;
+        // Tap mode: true if already hit while in tap area (reset when leaving area)
+        this.wasHitInTapArea = false;
+
+        // Flash effect for tap hit feedback
+        this.flashTime = 0;
     }
 
     /**
@@ -52,9 +55,11 @@ export class Ball {
     update(dt, inputSpeedMultiplier = 1.0) {
         if (!this.active) return;
 
-        // Decrease tap cooldown
-        if (this.tapCooldown > 0) {
-            this.tapCooldown -= dt * 1000; // dt is in seconds, cooldown in ms
+        // Note: wasHitInTapArea is reset by TapSystem when ball leaves tap area
+
+        // Decrease flash time
+        if (this.flashTime > 0) {
+            this.flashTime -= dt;
         }
 
         // Apply speed multiplier (Base * Weapon * Input)
@@ -146,12 +151,18 @@ export class Ball {
         // Ball render
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = '#fff';
+
+        // Flash effect when hit by tap
+        const isFlashing = this.flashTime > 0;
+        const ballColor = isFlashing ? '#FFFF00' : '#fff';
+        const glowColor = isFlashing ? '#FFFF00' : '#fff';
+
+        ctx.fillStyle = ballColor;
         ctx.fill();
 
         // Glow effect
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#fff';
+        ctx.shadowBlur = isFlashing ? 20 : 10;
+        ctx.shadowColor = glowColor;
         ctx.fill();
         ctx.shadowBlur = 0;
     }

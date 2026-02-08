@@ -226,13 +226,11 @@ export class LayerPanelController {
             </div>
         `;
 
-        // Click to select
-        if (!isBaseLayer) {
-            item.addEventListener('click', (e) => {
-                if (e.target.closest('[data-action]') || e.target.type === 'checkbox') return;
-                this.editor.layerManager.setActiveLayer(layer.id);
-            });
-        }
+        // Click to select (including base layer)
+        item.addEventListener('click', (e) => {
+            if (e.target.closest('[data-action]') || e.target.type === 'checkbox') return;
+            this.editor.layerManager.setActiveLayer(layer.id);
+        });
 
         // Checkbox
         const checkbox = item.querySelector('.layer-checkbox');

@@ -8,11 +8,10 @@ import { fileManager } from './FileManager.js';
 import { serializationService } from './SerializationService.js';
 import { dialogService } from '../ui/DialogService.js';
 import { previewStorage } from '../../shared/PreviewStorage.js';
+import { indexedDBStorage } from './IndexedDBStorage.js';
 
-/** @type {string} LocalStorageキー（プロジェクト保存用） */
-const STORAGE_KEY_PROJECT = 'hexbreaker_last_project';
-/** @type {number} LocalStorageの最大サイズ（MB） */
-const LOCAL_STORAGE_MAX_MB = 4;
+/** @type {string} IndexedDBキー（プロジェクト保存用） */
+const STORAGE_KEY_PROJECT = 'last_project';
 
 export class ProjectFileSystem {
     /**
@@ -219,6 +218,9 @@ export class ProjectFileSystem {
             this.currentProjectName = data.projectName;
             this.hasUnsavedChanges = false;
 
+            // 次回起動時に自動復元するためlocalStorageに保存
+            this.saveToLocalStorage();
+
             this.dialogs.toast('プロジェクトを読み込みました', 'success');
             return true;
 
@@ -287,7 +289,13 @@ export class ProjectFileSystem {
 
         // ブロック描画設定を復元
         if (data.blockRenderSettings) {
-            this.editor.uiController?.applyBlockRenderSettings(data.blockRenderSettings);
+            if (this.editor.uiController) {
+                // UIController存在時は即座に適用
+                this.editor.uiController.applyBlockRenderSettings(data.blockRenderSettings);
+            } else {
+                // UIController未初期化時は一時保存（UIController.init()で適用される）
+                this.editor.pendingBlockRenderSettings = data.blockRenderSettings;
+            }
         }
 
         this.editor.projectName = data.projectName;
@@ -423,11 +431,17 @@ export class ProjectFileSystem {
     // =========================================================================
 
     /**
-     * プロジェクトをlocalStorageに保存
-     * @returns {boolean} 成功したかどうか
+     * プロジェクトをIndexedDBに保存
+     * @returns {Promise<boolean>} 成功したかどうか
      */
-    saveToLocalStorage() {
+    async saveToLocalStorage() {
         try {
+            // ステージ確認
+            if (!this.editor.stageManager.stages || this.editor.stageManager.stages.length === 0) {
+                this.dialogs.toast('自動保存スキップ: ステージなし', 'warning');
+                return false;
+            }
+
             // 現在の状態を同期
             this.editor._syncLayersToStage();
             this.editor._syncLinesToStage();
@@ -442,34 +456,26 @@ export class ProjectFileSystem {
                 blockRenderSettings
             });
 
-            const json = JSON.stringify(data);
-
-            // サイズ検証
-            const sizeCheck = this.fileManager.validateJsonSize(json, LOCAL_STORAGE_MAX_MB);
-            if (!sizeCheck.valid) {
-                console.warn('プロジェクトが大きすぎてlocalStorageに保存できません:', sizeCheck.message);
-                return false;
-            }
-
-            localStorage.setItem(STORAGE_KEY_PROJECT, json);
+            // IndexedDBに保存（容量制限なし）
+            await indexedDBStorage.save(STORAGE_KEY_PROJECT, data);
+            this.dialogs.toast('自動保存しました', 'info', 1500);
             return true;
 
         } catch (error) {
-            console.error('localStorage保存エラー:', error);
+            this.dialogs.toast(`自動保存失敗: ${error.message}`, 'error');
             return false;
         }
     }
 
     /**
-     * localStorageからプロジェクトを復元
+     * IndexedDBからプロジェクトを復元
      * @returns {Promise<boolean>} 成功したかどうか
      */
     async restoreFromLocalStorage() {
         try {
-            const json = localStorage.getItem(STORAGE_KEY_PROJECT);
-            if (!json) return false;
+            const data = await indexedDBStorage.load(STORAGE_KEY_PROJECT);
+            if (!data) return false;
 
-            const data = JSON.parse(json);
             const success = await this.loadProjectFromData(data);
 
             if (success) {
@@ -479,17 +485,17 @@ export class ProjectFileSystem {
             return success;
 
         } catch (error) {
-            console.error('localStorage復元エラー:', error);
-            this.clearLocalStorage();
+            console.error('IndexedDB復元エラー:', error);
+            await this.clearLocalStorage();
             return false;
         }
     }
 
     /**
-     * localStorageをクリア
+     * IndexedDBをクリア
      */
-    clearLocalStorage() {
-        localStorage.removeItem(STORAGE_KEY_PROJECT);
+    async clearLocalStorage() {
+        await indexedDBStorage.delete(STORAGE_KEY_PROJECT);
     }
 
     /**
