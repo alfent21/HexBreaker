@@ -229,9 +229,9 @@ export class Game {
             this._updateUI();
         });
 
-        // Update tap effects (pass balls to reset wasHitInTapArea flags)
+        // Update tap effects (pass balls to reset wasHitInTapArea flags and continue hit detection)
         if (this.tapSystem.active) {
-            this.tapSystem.update(dt, this.balls);
+            this.tapSystem.update(dt, this.ballSystem.balls);
         }
 
         // Update boss

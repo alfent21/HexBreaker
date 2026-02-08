@@ -143,14 +143,16 @@ export class TapSystem {
 
         const hit = closestBall && closestSegment >= 0;
 
-        // Show racket at click position (color based on hit)
+        // Show racket at click position
+        // If no hit yet, racket stays active for continued detection
         this.racketEffects.push({
             x: clickX,
             y: clickY,
             age: 0,
             duration: 0.3,
             radius: this.hitRadius,
-            hit: hit
+            hit: hit,
+            active: !hit  // Active = still looking for a ball to hit
         });
 
         if (!hit) return false;
@@ -162,6 +164,45 @@ export class TapSystem {
         closestBall.flashTime = 0.15;
 
         // Mark as hit (prevents re-hitting until ball leaves tap area)
+        closestBall.wasHitInTapArea = true;
+
+        return true;
+    }
+
+    /**
+     * Try to hit a ball at the given position (used for continued detection)
+     * @param {number} x - Position X
+     * @param {number} y - Position Y
+     * @param {Array} balls - Ball array
+     * @returns {boolean} - Whether a ball was hit
+     * @private
+     */
+    _tryHitBallAtPosition(x, y, balls) {
+        let closestBall = null;
+        let closestDist = this.hitRadius;
+        let closestSegment = -1;
+
+        for (const ball of balls) {
+            if (ball.attached) continue;
+            if (ball.wasHitInTapArea) continue;
+
+            const dist = Math.hypot(x - ball.x, y - ball.y);
+            if (dist < closestDist) {
+                closestDist = dist;
+                closestBall = ball;
+                closestSegment = this._findClosestSegment(ball.x, ball.y);
+            }
+        }
+
+        if (!closestBall || closestSegment < 0) return false;
+
+        // Apply virtual paddle reflection
+        this._applyVirtualPaddleReflection(closestBall, x, y, closestSegment);
+
+        // Flash the ball
+        closestBall.flashTime = 0.15;
+
+        // Mark as hit
         closestBall.wasHitInTapArea = true;
 
         return true;
@@ -321,10 +362,21 @@ export class TapSystem {
             }
         }
 
-        // Update racket effects
+        // Update racket effects and continue hit detection for active rackets
         for (let i = this.racketEffects.length - 1; i >= 0; i--) {
-            this.racketEffects[i].age += dt;
-            if (this.racketEffects[i].age >= this.racketEffects[i].duration) {
+            const racket = this.racketEffects[i];
+            racket.age += dt;
+
+            // If racket is still active (no hit yet), keep trying to hit balls
+            if (racket.active && balls.length > 0) {
+                const hitResult = this._tryHitBallAtPosition(racket.x, racket.y, balls);
+                if (hitResult) {
+                    racket.hit = true;
+                    racket.active = false;
+                }
+            }
+
+            if (racket.age >= racket.duration) {
                 this.racketEffects.splice(i, 1);
             }
         }
