@@ -4,52 +4,85 @@
 
 ## 今回のセッション完了作業
 
-### フェーズ2: パドル + ミスラインのペアリング（エディタ）
+### タップモード：位置ベースクールダウン
 
-パドルライン作成時にミスラインを自動生成するペアリング機能を実装。
+同一タップエリア内でのボール再ヒットを防止する仕組みを実装。
 
 #### 実装済み機能
 | 機能 | 状態 |
 |------|------|
-| パドル作成時にミスラインを自動生成（normalSide反対側にオフセット） | ✅ |
-| ペアリングON/OFFチェックボックス | ✅ |
-| オフセット距離スライダー（20-200px、デフォルト50px） | ✅ |
-| パドル削除時にペアのミスラインも自動削除 | ✅ |
-| ライン端点クリックで既存ラインから描画再開機能 | ✅ |
-| normalSide反転ボタン | ✅ |
-| ミスライン単独作成の無効化 | ✅ |
+| `wasHitInTapArea` フラグをBallに追加 | ✅ |
+| タップエリア内でヒット後、フラグをtrueに設定 | ✅ |
+| ボールがタップエリアを離れるとフラグをリセット | ✅ |
+| タップ領域外のボールもhitRadius内なら打ち返し可能 | ✅ |
 
 #### 変更ファイル
 | ファイル | 変更内容 |
 |---------|---------|
-| `editor/managers/LineManager.js` | `createPaddleWithMissline()`, `resumeDrawingFrom()`, `findEndpointAt()` 追加、ペアリングプロパティ |
-| `editor/systems/RenderSystem.js` | `_drawLineBand()` をnormalSide対応に改修 |
-| `editor/ui/UIController.js` | 新UI要素のキャッシュ追加 |
-| `editor/ui/controllers/ToolPaletteController.js` | ペアリングUI制御、反転ボタン処理 |
-| `index.html` | パドル設定パネルにペアリングUI追加 |
-| `editor/core/Events.js` | ライン端点からの描画再開処理 |
-| `css/editor.css` | ミスラインボタンdisabledスタイル追加 |
+| `game/entities/Ball.js` | `wasHitInTapArea` プロパティ追加 |
+| `game/systems/TapSystem.js` | フラグチェック・リセット処理、`update(dt, balls)` |
+| `game/Game.js` | `tapSystem.update()` にボール配列を渡す |
 
 ---
 
-### フェーズ3: タップ反射修正 + ジェム収集
+### IndexedDB自動保存
 
-タップモードでの仮想パドル反射とジェムタップ収集を実装。
+localStorage 4MB制限を回避するため、IndexedDBを使用した大容量プロジェクト保存を実装。
 
 #### 実装済み機能
 | 機能 | 状態 |
 |------|------|
-| normalSideを使った仮想パドル反射 | ✅ |
-| タップ領域をnormalSide側のみに限定 | ✅ |
-| ペアのミスライン情報でタップ距離を計算 | ✅ |
-| ジェムタップ収集（ボール打ち返し優先） | ✅ |
+| IndexedDBStorage クラス作成 | ✅ |
+| プロジェクト自動保存をIndexedDBに変更 | ✅ |
+| 起動時の自動復元対応 | ✅ |
 
 #### 変更ファイル
 | ファイル | 変更内容 |
 |---------|---------|
-| `game/systems/TapSystem.js` | `_applyVirtualPaddleReflection()`, `isPointInTapArea()`, normalSide対応render |
-| `game/systems/GemSystem.js` | `collectByTap()` メソッド追加 |
-| `game/Game.js` | `_handleTap()` でボール優先→ジェム収集の処理 |
+| `editor/systems/IndexedDBStorage.js` | 新規作成（IndexedDBラッパー） |
+| `editor/systems/ProjectFileSystem.js` | IndexedDB使用に変更 |
+| `editor/managers/StartupManager.js` | IndexedDBからの復元処理 |
+
+---
+
+### ブロック描画設定の復元修正
+
+自動復元時にブロック描画設定（塗り・境界線・エンボス）がリセットされる問題を修正。
+
+#### 原因
+初期化順序の問題: `editor.init()` 時点では `uiController` が未初期化
+
+#### 解決策
+遅延適用パターン: `pendingBlockRenderSettings` に一時保存し、UIController初期化後に適用
+
+#### 変更ファイル
+| ファイル | 変更内容 |
+|---------|---------|
+| `editor/core/Editor.js` | `pendingBlockRenderSettings` プロパティ追加 |
+| `editor/systems/ProjectFileSystem.js` | 一時保存ロジック追加 |
+| `editor/ui/UIController.js` | 初期化時に保留設定を適用 |
+
+---
+
+### CLAUDE.md更新
+
+「質問への応答ルール」を最優先セクションとして追加。
+
+- 質問は質問として答える（修正依頼と解釈しない）
+- 推測で行動しない
+- 明確な修正依頼がない限りコードを変更しない
+
+---
+
+## 過去の完了作業
+
+### フェーズ2: パドル + ミスラインのペアリング（エディタ）
+
+パドルライン作成時にミスラインを自動生成するペアリング機能。
+
+### フェーズ3: タップ反射修正 + ジェム収集
+
+タップモードでの仮想パドル反射とジェムタップ収集。
 
 ---
 
